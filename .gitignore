@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.pyc
+.env
+.env.local
+.env.production
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-error.log*
+
+# Django
+*.log
+db.sqlite3-journal
+/media
+/staticfiles
+/logs
+
+# Docker
+**/volumes/*
+
+# VSCode
+.vscode/
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Mac
+.DS_Store
+
+# Security - NIKDY necommitujte!
+*.pem
+*.key
+*.crt
+secrets/
+.env.production.local

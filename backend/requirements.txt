@@ -1,0 +1,22 @@
+# Core Django
+Django>=4.2,<5.0
+python-dotenv>=1.0.0
+
+# Database
+psycopg2-binary>=2.9
+
+# API & REST
+djangorestframework>=3.14.0
+django-filter>=23.0
+
+# CORS handling
+django-cors-headers>=4.0.0
+
+# Static files (production)
+whitenoise>=6.5.0
+
+# Production server
+gunicorn>=21.0.0
+
+# Security & utilities
+django-environ>=0.11.0
