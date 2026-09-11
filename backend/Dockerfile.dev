@@ -1,29 +1,24 @@
+# =============================================================================
+# Backend – Development Dockerfile (hot-reload)
+# =============================================================================
 FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /code
 
-# systémové závislosti
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     gcc \
-    postgresql-client \
     netcat-traditional \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements-dev.txt /code/
+COPY requirements.txt requirements-dev.txt ./
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt && \
-    pip install -r requirements-dev.txt
+    pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
-COPY . /code/
-
-RUN chmod +x /code/entrypoint.sh
-
+# Kód se připojí přes bind mount v docker-compose.dev.yml
 EXPOSE 8000
-
-# V dev módu používáme runserver s hot reload
-CMD ["bash", "-c", "./entrypoint.sh"]

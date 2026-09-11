@@ -1,176 +1,118 @@
-# Django + Next.js (React) + Tailwind + Docker template
+# 🚀 Hackathon OS (Web Template v2.0)
 
-Tento repozitář obsahuje základní šablonu pro fullstack aplikaci:
-- **Backend**: Django (modulární monolit)
-- **Frontend**: Next.js (React) s TailwindCSS
-- **Orchestrace**: Docker Compose (Postgres pro DB)
-- **Reverse Proxy**: Nginx (pouze v produkci)
+Produkčně připravený **Hackathon Starter / Operační systém** pro rychlé prototypování a vítězné prezentace. Cíl: do 2 minut od `git clone` mít funkční aplikaci s autentizací, UI design systémem, reálnými daty, AI studiem, uploadem souborů a WebSockety.
 
-## Architektura
-
-### Backend (Modulární monolit)
-Django backend je strukturován jako modulární monolit s jasným oddělením vrstev:
-- `apps/` - Doménové moduly (bounded contexts)
-- `services/` - Business logika
-- `core/` - Sdílené utility a base třídy
-
-Více detailů v `backend/README.md`.
+**Stack:** Django 4.2 (ASGI/Daphne) + Next.js 16 (React 19, TypeScript, Tailwind v4) + JWT Auth (httpOnly cookies) + WebSockets + PostgreSQL 16 + Redis 7 + Traefik v3 + Mailhog
 
 ---
 
-## 🚀 Rychlý start
+## ⚡ Rychlý start
 
-### Development režim
-
-Pro lokální vývoj s hot reload a debug nástroji:
-
+### Windows (PowerShell)
 ```powershell
-# 1. Zkopírujte development .env
-cp .env.dev.example .env
+# 1. Spustit dev stack (automaticky vytvoří .env, spustí Docker, migrace i seed data)
+.\dev.ps1 up
 
-# 2. Spusťte development stack
-docker-compose -f docker-compose.dev.yml up --build
+# Nebo přes Make:
+make dev
 ```
 
-**Přístupné na:**
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000/api/
-- Django Admin: http://localhost:8000/admin
-- PostgreSQL: localhost:5432
+### Linux / macOS (Bash)
+```bash
+# 1. Spustit dev stack
+./dev.sh up
 
-**Development funkce:**
-- Hot reload pro Python i Next.js
-- Django Debug Toolbar
-- Detailní logging
-- Volume mounts pro live změny kódu
+# Nebo přes Make:
+make dev
+```
+
+### 🌐 Přístupové adresy:
+- **Frontend App:** [http://localhost:3000](http://localhost:3000)
+- **Swagger / OpenAPI UI:** [http://localhost:8000/api/docs/](http://localhost:8000/api/docs/)
+- **ReDoc Dokumentace:** [http://localhost:8000/api/redoc/](http://localhost:8000/api/redoc/)
+- **Backend REST API:** [http://localhost:8000/api/](http://localhost:8000/api/)
+- **Django Admin:** [http://localhost:8000/admin/](http://localhost:8000/admin/)
+- **Mailhog (E-maily lokálně):** [http://localhost:8025](http://localhost:8025)
+- **Traefik Dashboard:** [http://localhost:8080](http://localhost:8080)
 
 ---
 
-### Production režim
+## 👤 Předpřipravené demo účty (Seed Data)
 
-Pro produkční deployment s optimalizací:
+Po spuštění je databáze automaticky naplněna realistickými demo daty (projekty, úkoly, notifikace):
 
-```powershell
-# 1. Zkopírujte production .env
-cp .env.prod.example .env
+| Uživatel | Heslo | Role | Použití |
+|----------|-------|------|---------|
+| `admin` | `admin123456` | Administrátor / Team Lead | Plný přístup do appky i Django Adminu |
+| `alice` | `demo123456` | AI Lead | Demo člen týmu |
+| `bob` | `demo123456` | Fullstack Dev | Demo člen týmu |
+| `charlie` | `demo123456` | UI Designer | Demo člen týmu |
 
-# 2. Upravte .env (SECRET_KEY, hesla, domény)
-
-# 3. Spusťte production stack
-docker-compose up --build -d
-```
-
-**Přístupné na:**
-- Aplikace: http://localhost (přes Nginx)
-- Backend: pouze přes Nginx (/api/, /admin/)
-- Frontend: pouze přes Nginx
-
-**Production funkce:**
-- Multi-stage build pro Next.js (optimalizovaný)
-- Gunicorn WSGI server
-- Nginx reverse proxy
-- Static files serving
-- Security headers
-- SSL ready (upravte nginx.conf)
+*Na přihlašovací stránce `/login` jsou k dispozici tlačítka pro 1-klikové vyplnění těchto účtů.*
 
 ---
 
-## 📁 Struktura projektu
+## 🏗️ Architektura a vrstvy
 
 ```
-WEB_Template/
-├── backend/
-│   ├── apps/              # Doménové moduly
-│   │   └── items/
-│   ├── config/            # Django settings
-│   │   ├── settings.py       # Base settings
-│   │   ├── settings_dev.py   # Development
-│   │   └── settings_prod.py  # Production
-│   ├── core/              # Sdílené utility
-│   ├── services/          # Business logika
-│   ├── Dockerfile         # Production
-│   ├── Dockerfile.dev     # Development
-│   └── requirements.txt
-├── frontend/
-│   ├── pages/
-│   ├── styles/
-│   ├── Dockerfile         # Production (multi-stage)
-│   ├── Dockerfile.dev     # Development
-│   └── package.json
-├── nginx/
-│   └── nginx.conf         # Reverse proxy config
-├── docker-compose.yml     # Production
-├── docker-compose.dev.yml # Development
-├── .env.dev.example
-└── .env.prod.example
+┌─────────────────────────────────────────────────────────────┐
+│                       HACKATHON OS                          │
+├──────────────────────────────┬──────────────────────────────┤
+│ FRONTEND (Next.js 16 + TW4)  │ BACKEND (Django 4.2 + DRF)   │
+│ ├─ Design Tokens (Dark/Light)│ ├─ AI Layer Abstraction      │
+│ ├─ shadcn UI komponenty      │ ├─ File Storage Abstraction  │
+│ ├─ Collapsible Sidebar & Nav │ ├─ Projects, Tasks, Notifs   │
+│ ├─ Command Palette (Ctrl+K)  │ ├─ Email Service (Mailhog)   │
+│ ├─ Dashboard Přehled         │ ├─ Realistic Seed Data       │
+│ ├─ AI Studio Playground      │ ├─ Password Reset Flow       │
+│ ├─ Správce souborů           │ └─ Observability / Health    │
+│ ├─ WebSocket Live Monitor    │                              │
+│ └─ Split-screen Auth         │                              │
+└──────────────────────────────┴──────────────────────────────┘
 ```
 
 ---
 
-## 🔧 Užitečné příkazy
+## 🤖 AI Layer Abstraction
 
-### Django management
+Jednotné rozhraní pro práci s umělou inteligencí. Podporuje:
+- **Mock (Simulator - Zero Config):** Funguje ihned i bez zadání API klíče. Ideální pro rychlé prezentace a pitch na hackathonu.
+- **Google Gemini:** `gemini-1.5-flash`, `gemini-1.5-pro` (nastav `GEMINI_API_KEY` v `.env`).
+- **OpenAI:** `gpt-4o-mini`, `gpt-4o` (nastav `OPENAI_API_KEY` v `.env`).
+- **Ollama:** Lokální modely offline na `http://localhost:11434`.
 
-```powershell
-# Migrace databáze
-docker-compose exec backend python manage.py migrate
-
-# Vytvořit superuživatele
-docker-compose exec backend python manage.py createsuperuser
-
-# Collect static files
-docker-compose exec backend python manage.py collectstatic --noinput
-
-# Django shell
-docker-compose exec backend python manage.py shell
-```
-
-### Databáze
-
-```powershell
-# Připojit se k PostgreSQL
-docker-compose exec db psql -U appuser -d appdb_dev
-
-# Backup databáze
-docker-compose exec db pg_dump -U appuser appdb_dev > backup.sql
-
-# Restore
-cat backup.sql | docker-compose exec -T db psql -U appuser appdb_dev
-```
-
-### Logy
-
-```powershell
-# Všechny služby
-docker-compose logs -f
-
-# Pouze backend
-docker-compose logs -f backend
-
-# Pouze frontend
-docker-compose logs -f frontend
-```
+### Endpointy
+- `POST /api/ai/generate/` – Generování odpovědi (`{ prompt, system_prompt, provider, model, temperature }`)
+- `GET /api/ai/providers/` – Seznam dostupných providerů a stav jejich konfigurace
 
 ---
 
-## 📝 Poznámky
+## 📁 Souborové úložiště (Storage Abstraction)
 
-### Development
-- Django používá `settings_dev.py` s DEBUG=True a debug toolbar
-- Next.js běží v dev režimu s fast refresh
-- PostgreSQL port 5432 je exponován pro lokální přístup
-- Volume mounts umožňují live reload
+- Lokální diskové úložiště v dev prostředí (`media/uploads/`).
+- Připraveno pro MinIO / AWS S3 v produkci.
+- Endpointy:
+  - `POST /api/upload/` – Nahrání souboru (až 25 MB)
+  - `GET /api/upload/` – Seznam souborů
+  - `DELETE /api/upload/<id>/` – Smazání souboru i fyzicky z disku
 
-### Production
-- Django používá `settings_prod.py` se security nastavením
-- Next.js je built jako standalone optimalizovaný bundle
-- Nginx slouží jako reverse proxy a load balancer
-- Služby komunikují pouze přes Docker network (nejsou exponované přímo)
-- Pro SSL upravte `nginx/nginx.conf` a přidejte certifikáty
+---
 
-### Bezpečnost
-- Změňte `DJANGO_SECRET_KEY` v produkci
-- Nastavte silná hesla pro databázi
-- Upravte `ALLOWED_HOSTS` na vaše domény
-- Zvažte použití `.env` souboru mimo git (už je v `.gitignore`)
-- Pro produkci povolte SSL v nginx.conf
+## ⚡ WebSockets (Django Channels)
+
+- WebSocket URL: `ws://localhost:8000/ws/echo/` (Echo test)
+- WebSocket URL: `ws://localhost:8000/ws/room/<room_name>/` (Skupinový broadcast, chat, stav)
+- Autentizace: Automaticky přes JWT httpOnly cookie nebo `?token=<jwt>` query parametr.
+
+---
+
+## 🛠️ Užitečné příkazy (Dev Automation)
+
+| Příkaz (Make) | Příkaz (PowerShell) | Popis |
+|---------------|---------------------|-------|
+| `make dev` | `.\dev.ps1 up` | Spustí celý stack s hot-reloadem |
+| `make down` | `.\dev.ps1 down` | Zastaví kontejnery |
+| `make seed` | `.\dev.ps1 seed` | Znovu naplní databázi ukázkovými daty |
+| `make reset` | `.\dev.ps1 reset` | Reset DB volume + nové migrace + seed |
+| `make logs` | `.\dev.ps1 logs` | Živý výpis logů |
+| `make test` | `.\dev.ps1 test` | Spustí testy v backendu |

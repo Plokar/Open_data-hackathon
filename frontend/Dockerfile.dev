@@ -1,15 +1,15 @@
-# Development Dockerfile - hot reload
+# =============================================================================
+# Frontend – Development Dockerfile (hot-reload)
+# =============================================================================
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies
+RUN apk add --no-cache libc6-compat
+
 COPY package.json package-lock.json* ./
-RUN npm ci --silent || npm install --silent
+RUN npm ci
 
-COPY . .
-
+# Kód se připojí přes bind mount v docker-compose.dev.yml
 EXPOSE 3000
-
-# Development server s hot reload
-CMD ["npm", "run", "dev"]
+ENV NEXT_TELEMETRY_DISABLED=1
