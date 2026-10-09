@@ -33,8 +33,28 @@ export default function TeamPage() {
         <div className="mt-3 rounded-2xl border border-border p-4">
           <div className="text-xl font-bold">{team.name}</div>
           <p className="mt-1 text-sm">Kód pro přidání: <b className="rounded bg-muted px-2 py-0.5 font-mono tracking-widest">{team.join_code}</b></p>
+          <div className="mt-4 rounded-xl bg-muted p-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-semibold">Týdenní výzva</span>
+              <span className="text-sm tabular-nums">{team.challenge.progress}/{team.challenge.target}</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-background" role="progressbar" aria-label="Týdenní výzva týmu"
+              aria-valuenow={team.challenge.progress} aria-valuemin={0} aria-valuemax={team.challenge.target}>
+              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (100 * team.challenge.progress) / Math.max(1, team.challenge.target))}%` }} />
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {team.challenge.progress >= team.challenge.target
+                ? 'Splněno, tým má tento týden hotovo.'
+                : 'Každý člen přispěje třemi razítky od pondělí do neděle.'}
+            </p>
+          </div>
           <ul className="mt-3 space-y-1 text-sm">
-            {team.members.map((m) => <li key={m.nickname}>{m.nickname} <span className="text-muted-foreground">· lvl {m.level}</span></li>)}
+            {team.members.map((m) => (
+              <li key={m.nickname} className="flex justify-between gap-2">
+                <span>{m.nickname} <span className="text-muted-foreground">úroveň {m.level}</span></span>
+                <span className="tabular-nums text-muted-foreground">tento týden {m.week}</span>
+              </li>
+            ))}
           </ul>
           <Button variant="outline" className="mt-4 w-full" onClick={() => run(teamApi.leave)}>Opustit tým</Button>
         </div>

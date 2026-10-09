@@ -155,6 +155,10 @@ export const authApi = {
 
   getMe: () => apiFetch<User>('/api/auth/me/'),
 
+  /** Smí ostatní přihlášení hráči vidět fotky z mých razítek? (výchozí: ne) */
+  setPhotoPublic: (photo_public: boolean) =>
+    apiFetch<User>('/api/auth/me/', { method: 'PUT', body: JSON.stringify({ photo_public }) }),
+
   updateMe: (data: Partial<User>) =>
     apiFetch<User>('/api/auth/me/', {
       method: 'PUT',
@@ -237,9 +241,12 @@ export interface PlaceDetail {
     products?: { name: string; category: string; year: string }[];
     photo?: PlacePhoto;
     wiki?: { title: string; extract: string; url: string };
+    swim?: { spec: string; amenities: string }; // koupací místa: druh a vybavení (kvalita vody je na webu KHS, viz `url`)
   };
   stamped: boolean;
   stamp_count: number;
+  forgotten: boolean; // málo navštěvované místo: ×1,5 XP
+  food_kinds?: { name: string; tasted: boolean }[]; // jen u výrobců Dobrot
   my_pet: { id: number; name: string; type: PetType; seed: number; stage: number; rarity: Rarity; level: number } | null | false;
 }
 
@@ -316,6 +323,8 @@ export interface CheckInResult {
   xp_gain: number;
   level_up: boolean;
   level: number;
+  forgotten: boolean;
+  trail_done: { id: string; stop: string } | null;
   new_badges: { code: string; name: string; icon: string }[];
 }
 
@@ -503,6 +512,7 @@ export interface PlaceStatRow { id: number; name: string; category: Category; ok
 
 export interface PlaceStats {
   total_stamps: number;
+  forgotten_stamps: number;
   total_players: number;
   top: PlaceStatRow[];
   least: PlaceStatRow[];
@@ -513,6 +523,7 @@ export interface PlaceStats {
 
 export const statsApi = {
   places: () => apiFetch<PlaceStats>('/api/stats/places/'),
+  csvUrl: `${API_BASE}/api/stats/places.csv`, // otevřená data zpět (CC0)
 };
 
 // ── Questy a týmy (PROJECT_SPEC 7.5, 7.6) ────────────────────────────────────
@@ -526,17 +537,35 @@ export interface Quest {
   target: number;
   done: boolean;
   place_id?: number | null;
+  weather?: 'rain' | 'clear' | null;
 }
+
+/** Výprava bez auta: místa u jedné autobusové zastávky. */
+export interface Trail {
+  id: string;
+  stop: string;
+  okres: string;
+  progress: number;
+  target: number;
+  done: boolean;
+  places: { id: number; name: string; category: Category; stamped: boolean }[];
+}
+
+/** Druh oceněných Dobrot kraje a zda ho hráč už ochutnal (navštívil výrobce). */
+export interface FoodKind { name: string; producers: number; tasted: boolean }
 
 export interface Team {
   name: string;
   join_code: string;
   owner: string;
-  members: { nickname: string; level: number }[];
+  members: { nickname: string; level: number; week: number }[];
+  challenge: { progress: number; target: number }; // týdenní výzva: 3 razítka na člena
 }
 
 export const teamApi = {
   quests: () => apiFetch<Quest[]>('/api/quests/'),
+  trails: () => apiFetch<Trail[]>('/api/trails/', { cache: 'no-store' }),
+  foodPass: () => apiFetch<FoodKind[]>('/api/food-pass/', { cache: 'no-store' }),
   mine: () => apiFetch<{ team: Team | null }>('/api/teams/'),
   create: (name: string) => apiFetch<{ team: Team }>('/api/teams/', { method: 'POST', body: JSON.stringify({ name }) }),
   join: (join_code: string) => apiFetch<{ team: Team }>('/api/teams/join/', { method: 'POST', body: JSON.stringify({ join_code }) }),

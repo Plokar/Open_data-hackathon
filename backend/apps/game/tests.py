@@ -82,7 +82,9 @@ def test_checkin_flow(api_client):
     assert r.status_code == 201, r.data
     assert r.data['pet']['type'] == 'fortress' and r.data['pet']['verified'] is True
     from .quests import daily_place
-    assert r.data['xp_gain'] == 75 * (2 if daily_place() == p1 else 1)
+    # první razítko na nenavštíveném místě je „zapomenuté“: ×1,5 XP
+    assert r.data['forgotten'] is True and r.data['trail_done'] is None
+    assert r.data['xp_gain'] == round(75 * 1.5) * (2 if daily_place() == p1 else 1)
     assert [b['code'] for b in r.data['new_badges']] == ['first']
 
     r = api_client.post('/api/checkins/', {'place': p1.id, 'lat': PLACE.lat, 'lon': PLACE.lon, 'accuracy': 10,
@@ -118,13 +120,16 @@ def test_daily_quest_and_teams(api_client):
     api_client.force_authenticate(u)
     r = api_client.post('/api/checkins/', {'place': daily.id, 'lat': daily.lat, 'lon': daily.lon, 'accuracy': 10,
                                            'client_ts': int(time.time() * 1000), 'photo': _photo()}, format='multipart')
-    assert r.status_code == 201 and r.data['xp_gain'] == 100              # common 50 × 2
+    assert r.status_code == 201 and r.data['xp_gain'] == 150              # common 50 × 1,5 (zapomenuté) × 2 (místo dne)
     assert {q['code']: q for q in api_client.get('/api/quests/').data}['daily']['done']
 
     code = api_client.post('/api/teams/', {'name': 'Chebští vlci'}, format='json').data['team']['join_code']
     v = User.objects.create_user('v', password='x')
     api_client.force_authenticate(v)
-    assert len(api_client.post('/api/teams/join/', {'join_code': code.lower()}, format='json').data['team']['members']) == 2
+    team = api_client.post('/api/teams/join/', {'join_code': code.lower()}, format='json').data['team']
+    assert len(team['members']) == 2
+    assert team['challenge'] == {'progress': 1, 'target': 6}               # týdenní výzva: 3 razítka na člena
+    assert {m['nickname']: m['week'] for m in team['members']} == {'q': 1, 'v': 0}
     assert api_client.get('/api/leaderboard/?scope=team').data[0] == {'name': 'Chebští vlci', 'stamps': 1, 'wins': 0, 'players': 2}
 
 

@@ -1,6 +1,7 @@
 """Vyhodnocení deklarativních pravidel odznaků (PROJECT_SPEC 7.4). Nový odznak = nový záznam ve fixture."""
 from apps.places.models import Place
 
+from . import quests
 from .models import Badge, CheckIn, UserBadge
 
 
@@ -26,7 +27,15 @@ def progress(rule, user):
     if kind == 'no_car':
         return stamps.filter(place__nearest_stop_m__lte=300).count(), rule['n']
     if kind == 'season':
+        if 'subtype' in rule:
+            stamps = stamps.filter(place__subtype__startswith=rule['subtype'])
         return stamps.filter(created_at__month__in=rule['months']).count(), rule['n']
+    if kind == 'forgotten':
+        return stamps.filter(forgotten=True).count(), rule['n']
+    if kind == 'trails':
+        return quests.trails_done(user), rule['n']
+    if kind == 'food_kinds':
+        return quests.tasted_count(user), rule['n']
     raise ValueError(f'Neznámé pravidlo {kind}')
 
 

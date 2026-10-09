@@ -36,6 +36,12 @@ EVOLVE_LEVEL = {2: 3, 3: 6}  # do stupně 2 od levelu 3, do stupně 3 od levelu 
 INJURY = timedelta(minutes=30)
 
 
+def next_rarity(rarity):
+    """O stupeň vzácnější tvor (odměna za dokončenou výpravu), legendary už výš nejde."""
+    order = list(RARITY_MULT)
+    return order[min(order.index(rarity) + 1, len(order) - 1)]
+
+
 def pet_seed(place_id, photo_sha256, user_id):
     return int(hashlib.sha256(f'{place_id}{photo_sha256}{user_id}'.encode()).hexdigest()[:15], 16)
 
@@ -86,4 +92,5 @@ if __name__ == '__main__':
     assert [level_for_xp(x) for x in (0, 39, 40, 120, 599, 600, 10**9)] == [1, 1, 2, 3, 5, 6, MAX_LEVEL]
     a = generate(1, 'castle', 'common', 'x', 1)
     assert a == generate(1, 'castle', 'common', 'x', 1) and set(BASE_STATS) <= set(a)
+    assert [next_rarity(r) for r in RARITY_MULT] == ['rare', 'epic', 'legendary', 'legendary']
     print('ok')

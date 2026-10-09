@@ -11174,7 +11174,12 @@
   "nearest_stop_m": 359,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách s provozovatelem",
+    "amenities": "Občerstvení včetně zastřešeného posezení, WC, sprchy, vodní záchranná služba, dětské pískoviště, prolézačky, houpačky, lavičky, odpadové koše."
+   }
+  }
  }
 },
 {
@@ -11201,7 +11206,12 @@
   "nearest_stop_m": 1043,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách s provozovatelem",
+    "amenities": "Na levém břehu vodní nádrže Michal je umístěn zcela nový komplex – Koupaliště Michal. Koupaliště Michal je placené, vybavené parkovištěm, záchody, občerstvením, pítky, sprchami, šatnami a je zde tobogán a skluzavka. Pravý břeh je oplocen bez přístupu veřejnosti."
+   }
+  }
  }
 },
 {
@@ -11228,7 +11238,12 @@
   "nearest_stop_m": 2058,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách s provozovatelem",
+    "amenities": "K dispozici jsou sportovní hřiště, občerstvení a hygienické zázemí."
+   }
+  }
  }
 },
 {
@@ -11255,7 +11270,12 @@
   "nearest_stop_m": 865,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách s provozovatelem",
+    "amenities": "Součástí koupaliště jsou chatky s hygienickým zázemím, restaurace a občerstvení."
+   }
+  }
  }
 },
 {
@@ -11282,7 +11302,12 @@
   "nearest_stop_m": 549,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách bez provozovatele",
+    "amenities": "Restaurace, občerstvení a WC cca 100 m od pláže, plavčík ani zdravotník tam nejsou."
+   }
+  }
  }
 },
 {
@@ -11309,7 +11334,12 @@
   "nearest_stop_m": 1072,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách bez provozovatele",
+    "amenities": "Lavičky, odpadkové koše a chemické WC; bývá zde rychlé stánkové občerstvení."
+   }
+  }
  }
 },
 {
@@ -11336,7 +11366,12 @@
   "nearest_stop_m": 367,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách bez provozovatele",
+    "amenities": "Občerstvení, půjčovna sportovního vybavení, WC, sprchy, převlékací zástěny, hřiště plážového volejbalu, plocha pro pétanque, houpačky, ruské kuželky, stolní tenis."
+   }
+  }
  }
 },
 {
@@ -11363,7 +11398,12 @@
   "nearest_stop_m": 889,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách bez provozovatele",
+    "amenities": "Není zde žádná občanská vybavenost."
+   }
+  }
  }
 },
 {
@@ -11390,7 +11430,12 @@
   "nearest_stop_m": 223,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách bez provozovatele",
+    "amenities": "Koupací místo je v areálu kempu Rybářská bašta, jehož součástí je restaurace, hygienické zázemí a parkoviště."
+   }
+  }
  }
 },
 {
@@ -11417,7 +11462,12 @@
   "nearest_stop_m": 909,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách bez provozovatele",
+    "amenities": "V blízkosti kemp Václav s vybavením, občerstvení i toalety."
+   }
+  }
  }
 },
 {
@@ -11444,7 +11494,12 @@
   "nearest_stop_m": 1320,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Přírodní koupaliště na povrchových vodách bez provozovatele",
+    "amenities": "V blízkosti kemp Podhoří s vybavením, občerstvení i toalety."
+   }
+  }
  }
 },
 {
@@ -11471,7 +11526,12 @@
   "nearest_stop_m": 481,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Převlékárny, lavičky, mobilní WC, zastřešený altán, dětský koutek, odpadkové koše."
+   }
+  }
  }
 },
 {
@@ -11498,7 +11558,12 @@
   "nearest_stop_m": 684,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Dřevěné stoly a lavice, pískoviště."
+   }
+  }
  }
 },
 {
@@ -11525,7 +11590,12 @@
   "nearest_stop_m": 554,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Lavičky, odpadové koše. Rozmanitost služeb není příliš veliká. V blízkosti koupaliště je fotbalové hřiště s restaurací."
+   }
+  }
  }
 },
 {
@@ -11552,7 +11622,12 @@
   "nearest_stop_m": 421,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Odpadkové koše, restaurace. Plavčík ani zdravotník zde nejsou."
+   }
+  }
  }
 },
 {
@@ -11579,7 +11654,12 @@
   "nearest_stop_m": 250,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Občerstvení a restaurace, WC, autokemp s informačním střediskem, lavičky, odpadové koše. Plavčík ani zdravotník zde nejsou."
+   }
+  }
  }
 },
 {
@@ -11606,7 +11686,12 @@
   "nearest_stop_m": 1059,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Odpadkové koše; není zde žádná občanská vybavenost."
+   }
+  }
  }
 },
 {
@@ -11633,7 +11718,12 @@
   "nearest_stop_m": 364,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Občerstvení, tenisové kurty. Plavčík ani zdravotník zde nejsou."
+   }
+  }
  }
 },
 {
@@ -11660,7 +11750,12 @@
   "nearest_stop_m": 952,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Na volně přistupném koupališti se nacházejí jak toalety, tak kiosek s nabídkou občerstvení. Parkoviště."
+   }
+  }
  }
 },
 {
@@ -11687,7 +11782,12 @@
   "nearest_stop_m": 1362,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Lze využít vybavenosti autokempu, občerstvení, WC, sprchy."
+   }
+  }
  }
 },
 {
@@ -11714,7 +11814,12 @@
   "nearest_stop_m": 220,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Odpadkové koše; není zde žádná občanská vybavenost."
+   }
+  }
  }
 },
 {
@@ -11741,7 +11846,12 @@
   "nearest_stop_m": 217,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Odpadkové koše; není zde žádná občanská vybavenost."
+   }
+  }
  }
 },
 {
@@ -11768,7 +11878,12 @@
   "nearest_stop_m": 558,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Žádné služby zde nejsou, pláž je travnatá, na jednom břehu jsou lavičky a prolézačky pro děti."
+   }
+  }
  }
 },
 {
@@ -11795,7 +11910,12 @@
   "nearest_stop_m": 1500,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Není zde žádná občanská vybavenost."
+   }
+  }
  }
 },
 {
@@ -11822,7 +11942,12 @@
   "nearest_stop_m": 321,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Odpadkové koše; není zde žádná občanská vybavenost."
+   }
+  }
  }
 },
 {
@@ -11849,7 +11974,12 @@
   "nearest_stop_m": 145,
   "license": "CC0",
   "source_url": "https://www.datazapad.cz/api/download/v1/items/239805159c8649609d1bd40a30439623/csv?layers=0",
-  "extra": {}
+  "extra": {
+   "swim": {
+    "spec": "Koupaliště v přírodě místního významu bez provozovatele",
+    "amenities": "Stánek s občerstvením, záchody, sprchy, 2 pítka  s pitnou vodou, kontejner na odpadky, hřiště na plážový volejbal. Plavčík ani zdravotník zde nejsou."
+   }
+  }
  }
 },
 {

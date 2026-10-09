@@ -68,6 +68,9 @@ export default function InsightsPage() {
             <div className="rounded-xl bg-muted p-3 text-center"><div className="text-2xl font-black">{s.total_stamps}</div><div className="text-xs text-muted-foreground">razítek</div></div>
             <div className="rounded-xl bg-muted p-3 text-center"><div className="text-2xl font-black">{s.total_players}</div><div className="text-xs text-muted-foreground">hráčů s razítkem</div></div>
           </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Na málo navštěvovaná místa zamířilo {s.forgotten_stamps} razítek. Hra za ně dává ×1,5 XP, aby se turisté rozešli po celém kraji.
+          </p>
 
           <h2 className="mt-5 font-bold">Mapa návštěvnosti</h2>
           <div className="mt-2 h-72 overflow-hidden rounded-xl border border-border">
@@ -82,8 +85,16 @@ export default function InsightsPage() {
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div><h2 className="mb-2 font-bold">Nejnavštěvovanější</h2>{s.top.length ? <PlaceList rows={s.top} /> : <p className="text-sm text-muted-foreground">Zatím žádná razítka.</p>}</div>
-            <div><h2 className="mb-2 font-bold">Kam ještě nikdo nedošel</h2><PlaceList rows={s.least} /></div>
+            <div><h2 className="mb-2 font-bold">Kam ještě nikdo nedošel</h2><p className="mb-2 text-xs text-muted-foreground">Za tato místa je bonus ×1,5 XP.</p><PlaceList rows={s.least} /></div>
           </div>
+
+          <h2 className="mt-6 font-bold">Otevřená data zpět</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Návštěvnost míst ke stažení jako CSV pod licencí CC0, bez identity hráčů a bez demo razítek. Počty menší než 5 se neuvádějí.
+          </p>
+          <a href={statsApi.csvUrl} download className="mt-3 flex h-12 items-center justify-center rounded-xl bg-primary font-semibold text-primary-foreground">
+            Stáhnout návštěvnost (CSV)
+          </a>
         </>
       )}
     </AppShell>

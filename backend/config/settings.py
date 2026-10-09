@@ -316,6 +316,8 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')  # odkazy
 CHECKIN_RADIUS_M = int(os.environ.get('CHECKIN_RADIUS_M', 300))
 # DEMO_MODE: staff smí razítkovat bez kontroly vzdálenosti (PROJECT_SPEC 8.3). V produkci False.
 DEMO_MODE = os.environ.get('DEMO_MODE', 'False') == 'True'
+# Místo dne podle počasí (Open-Meteo, bez klíče). Při výpadku nebo vypnutí se vybírá jen podle data.
+WEATHER_ENABLED = os.environ.get('WEATHER_ENABLED', 'True') == 'True'
 AI_VISION_VERIFY = os.environ.get('AI_VISION_VERIFY', 'False') == 'True'  # Gemini vision → jen úprava trust
 AI_LORE = os.environ.get('AI_LORE', 'False') == 'True'  # AI příběh PETa (AI_PROVIDER), jinak šablona
 PRIVATE_MEDIA_ROOT = BASE_DIR / 'private_media'  # fotky z check-inů, nikdy ne pod /media/

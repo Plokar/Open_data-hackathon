@@ -62,7 +62,7 @@ def health_check(request):
 import os
 from django.conf import settings
 from django.conf.urls.static import static
-from apps.places.views import place_stats
+from apps.places.views import place_stats, place_stats_csv
 
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -77,6 +77,7 @@ urlpatterns = [
     path('api/auth/', include('apps.authentication.urls')),
     path('api/places/', include('apps.places.urls')),
     path('api/stats/places/', place_stats, name='place-stats'),
+    path('api/stats/places.csv', place_stats_csv, name='place-stats-csv'),
     path('api/battles/', include('apps.battles.urls')),
     path('api/', include('apps.game.urls')),
 

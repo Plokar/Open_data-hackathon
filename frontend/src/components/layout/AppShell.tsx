@@ -50,7 +50,7 @@ export function AppShell({ children, fullBleed = false }: { children: React.Reac
 
       {!fullBleed && (
         <footer className="mx-auto w-full max-w-md px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-xs leading-relaxed text-muted-foreground">
-          Místa z <a className="underline" href="https://www.datazapad.cz" target="_blank" rel="noreferrer">DATA ZÁPAD</a> (Karlovarský kraj, CC0), mapa © OpenStreetMap.{' '}
+          Místa z <a className="underline" href="https://www.datazapad.cz" target="_blank" rel="noreferrer">DATA ZÁPAD</a> (Karlovarský kraj, CC0), mapa © OpenStreetMap, počasí <a className="underline" href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo.com</a>.{' '}
           <Link className="underline" href="/insights">Co hráči objevují</Link>, <Link className="underline" href="/privacy">soukromí</Link>.
         </footer>
       )}

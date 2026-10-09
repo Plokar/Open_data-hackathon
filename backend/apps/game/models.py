@@ -61,6 +61,7 @@ class CheckIn(models.Model):
     trust = models.IntegerField(default=100)
     verified = models.BooleanField(default=False)
     is_demo = models.BooleanField(default=False)
+    forgotten = models.BooleanField(default=False)  # místo bylo v době razítka málo navštěvované (bonus XP)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['user', 'place'], name='uniq_checkin_user_place')]

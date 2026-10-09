@@ -24,6 +24,7 @@ from . import ai_hooks, anticheat, badges, pets, quests
 from .models import Badge, CheckIn, Friendship, Pet, Profile, Team, UserBadge
 
 XP_BY_RARITY = {'common': 50, 'rare': 75, 'epic': 100, 'legendary': 150}
+FORGOTTEN_XP_MULT = 1.5  # bonus za málo navštěvované místo (rozkládá turisty po kraji)
 
 
 def err(code, detail, status=400, **extra):
@@ -115,6 +116,8 @@ class CheckInView(APIView):
         except anticheat.Reject as r:
             return err(r.code, r.detail, r.status, **r.extra)
 
+        forgotten = not demo and place.is_forgotten                # počítá se před uložením tohoto razítka
+        trail = quests.trail_finished_by(user, place)               # výprava, kterou toto razítko dokončí
         ai_delta = ai_hooks.vision_trust_delta(data, place.category)
         trust = anticheat.trust_score(info['trust_penalty'], 0 if demo else accuracy, ai_delta)
         verified = trust >= 50 and not demo
@@ -125,12 +128,15 @@ class CheckInView(APIView):
                     user=user, place=place, lat=lat, lon=lon, accuracy_m=accuracy, distance_m=distance,
                     photo=ContentFile(data, name=f'{uuid.uuid4().hex}.{ext}'), photo_sha256=info['sha256'],
                     photo_phash=info['phash'], exif_status=info['exif_status'], trust=trust,
-                    verified=verified, is_demo=demo)
-                spec = pets.generate(place.id, place.category, place.rarity, info['sha256'], user.id)
+                    verified=verified, is_demo=demo, forgotten=forgotten)
+                rarity = pets.next_rarity(place.rarity) if trail else place.rarity  # odměna za dokončenou výpravu
+                spec = pets.generate(place.id, place.category, rarity, info['sha256'], user.id)
                 pet = Pet.objects.create(owner=user, place=place, checkin=ci, verified=verified,
                                          lore=ai_hooks.generate_lore(spec, place), **spec)
                 profile = profile_of(user)
                 xp_gain = XP_BY_RARITY[place.rarity]
+                if forgotten:
+                    xp_gain = round(xp_gain * FORGOTTEN_XP_MULT)
                 daily = quests.daily_place()
                 if daily and daily.id == place.id:
                     xp_gain *= 2  # quest „Místo dne“
@@ -144,7 +150,9 @@ class CheckInView(APIView):
             return err('ALREADY_STAMPED', 'Toto místo už máš v Pasu.', 409)
         return Response({
             'checkin': checkin_json(ci), 'pet': pet_json(pet), 'xp_gain': xp_gain, 'level_up': level_up,
-            'level': profile.level, 'new_badges': [{'code': b.code, 'name': b.name, 'icon': b.icon} for b in new_badges],
+            'level': profile.level, 'forgotten': forgotten,
+            'trail_done': trail and {'id': trail['id'], 'stop': trail['stop']},
+            'new_badges': [{'code': b.code, 'name': b.name, 'icon': b.icon} for b in new_badges],
         }, status=201)
 
 
@@ -330,9 +338,26 @@ def quest_list(request):
     return Response(quests.quests_for(request.user))
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def trail_list(request):
+    return Response(quests.trails_for(request.user))
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def food_pass(request):
+    return Response(quests.food_pass(request.user))
+
+
 def team_json(t):
+    # týdenní výzva: každý člen přispěje třemi razítky (jako osobní quest), počítá se jen od pondělí a bez demo
+    week = dict(CheckIn.objects.filter(user__profile__team=t, is_demo=False, created_at__date__gte=quests.week_start())
+                .order_by().values_list('user__profile__nickname').annotate(n=Count('id')))
+    members = list(t.members.order_by('-xp'))
     return {'name': t.name, 'join_code': t.join_code, 'owner': profile_of(t.owner).nickname,
-            'members': [{'nickname': p.nickname, 'level': p.level} for p in t.members.order_by('-xp')]}
+            'members': [{'nickname': p.nickname, 'level': p.level, 'week': week.get(p.nickname, 0)} for p in members],
+            'challenge': {'progress': sum(week.values()), 'target': 3 * len(members)}}
 
 
 @api_view(['GET', 'POST'])

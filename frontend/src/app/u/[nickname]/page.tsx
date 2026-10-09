@@ -192,10 +192,11 @@ function FriendAction({ p, onChange, highlight }: { p: PublicProfile; onChange: 
 
 export default function ProfilePage() {
   const { nickname } = useParams<{ nickname: string }>();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [p, setP] = useState<PublicProfile | null>(null);
   const [error, setError] = useState('');
   const [addParam, setAddParam] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
   const nick = decodeURIComponent(nickname);
 
   const load = useCallback(() => {
@@ -211,6 +212,18 @@ export default function ProfilePage() {
   const isMe = user?.profile.nickname === p.nickname;
   const color = p.top_pet ? PET_TYPE[p.top_pet.type].color : '#2e6a47';
   const inLevel = p.xp % XP_PER_LEVEL;
+
+  const togglePhotos = async (value: boolean) => {
+    setSavingPhoto(true);
+    try {
+      await authApi.setPhotoPublic(value);
+      await refreshUser();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
 
   const removeAccount = async () => {
     if (!window.confirm('Opravdu smazat účet, razítka, tvory a fotky? Nejde to vrátit.')) return;
@@ -292,6 +305,14 @@ export default function ProfilePage() {
 
       {isMe && (
         <div className="mt-10 space-y-2">
+          <label className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3 text-sm">
+            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--primary)]" checked={!!user?.profile.photo_public}
+              disabled={savingPhoto} onChange={(e) => togglePhotos(e.target.checked)} />
+            <span>
+              <span className="font-semibold">Fotky z razítek smí vidět ostatní hráči</span>
+              <br /><span className="text-muted-foreground">Výchozí je soukromé. Foť jen místa, nikdy lidi.</span>
+            </span>
+          </label>
           <button onClick={logout} className="h-12 w-full cursor-pointer rounded-xl border border-border bg-card font-semibold">Odhlásit se</button>
           <button onClick={removeAccount} className="h-12 w-full cursor-pointer rounded-xl font-semibold text-destructive">Smazat účet a všechna data</button>
         </div>

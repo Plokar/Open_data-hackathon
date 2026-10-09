@@ -52,7 +52,8 @@ export default function PrivacyPage() {
         <p>Na svém profilu (klikni na přezdívku vpravo nahoře) najdeš „Smazat účet“. Smažeme účet, razítka, tvory, souboje i všechny fotky. Nejde to vrátit.</p>
 
         <h2 className="text-lg font-bold">Zdroje dat</h2>
-        <p>Místa pochází z portálu <a className="text-primary underline" href="https://www.datazapad.cz" target="_blank" rel="noreferrer">DATA ZÁPAD</a> (Karlovarský kraj, licence CC0). Mapové podklady © přispěvatelé OpenStreetMap.</p>
+        <p>Místa pochází z portálu <a className="text-primary underline" href="https://www.datazapad.cz" target="_blank" rel="noreferrer">DATA ZÁPAD</a> (Karlovarský kraj, licence CC0). Mapové podklady © přispěvatelé OpenStreetMap. Předpověď počasí pro doporučení místa dne bere server z <a className="text-primary underline" href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo.com</a>, odesílá se jen poloha středu kraje, žádné údaje o hráčích.</p>
+        <p>Návštěvnost míst zveřejňujeme jako otevřená data (CSV, CC0) na stránce „Co hráči objevují“. Obsahuje jen počty razítek u míst, bez identity hráčů, a počty menší než 5 se neuvádějí.</p>
 
         <h2 className="text-lg font-bold">Kontakt</h2>
         <p>Správce: tým Západ GO. Kontakt najdeš v README veřejného repozitáře projektu.</p>

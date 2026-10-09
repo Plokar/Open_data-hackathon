@@ -148,7 +148,7 @@ Nové Django aplikace nahrazují `apps/items` a `apps/projects`. Stávající `a
 
 ### 6.2 `apps/game`
 - **Profile** (1:1 k `User`): `nickname` (unikátní, veřejné), `age_group` (`under18`/`adult`), `consent_confirmed` (bool), `school` (volitelné), `xp`, `level`, `photo_public` (default `false`).
-- **CheckIn**: `user`, `place`, `lat`, `lon`, `accuracy_m`, `distance_m`, `created_at`, `photo` (soukromý soubor), `photo_sha256`, `photo_phash`, `exif_status` (`ok`/`missing`/`mismatch`), `trust` (0–100), `verified` (bool), `is_demo` (bool). **Unikátní `(user, place)`** – jedno razítko na místo.
+- **CheckIn**: `user`, `place`, `lat`, `lon`, `accuracy_m`, `distance_m`, `created_at`, `photo` (soukromý soubor), `photo_sha256`, `photo_phash`, `exif_status` (`ok`/`missing`/`mismatch`), `trust` (0–100), `verified` (bool), `is_demo` (bool), `forgotten` (bool, místo bylo v době razítka málo navštěvované, viz 7.8). **Unikátní `(user, place)`** – jedno razítko na místo.
 - **Pet**: `owner`, `place` (zdrojové místo), `checkin`, `species`, `type` (viz 7.2), `name`, `rarity`, staty `hp`, `atk`, `defense`, `spd`, `level`, `xp`, `seed` (int), `lore` (text, volitelně z AI), `verified` (bool z check-inu), `created_at`.
 - **Badge** (katalog, seed data): `code`, `name`, `description`, `rule` (JSON, viz 7.4), `icon`.
 - **UserBadge**: `user`, `badge`, `awarded_at`.
@@ -227,6 +227,17 @@ Seznam odznaků se plní z fixture; každý nový odznak = jeden záznam, žádn
 
 ---
 
+### 7.8 Rozšíření: rozložení turismu, počasí, výpravy, Dobroty
+Vše se počítá z existujících dat, kromě `CheckIn.forgotten` bez nových tabulek (`apps/game/quests.py`).
+
+- **Zapomenutá místa:** místo s nejvýše 2 skutečnými razítky (bez demo, nikdy `is_hazardous`) dá ×1,5 XP; razítko si uloží `forgotten=True`. Odznak „Objevitel“ (3×). `/api/stats/places/` vrací `forgotten_stamps` jako měřítko rozložení turistů.
+- **Místo dne podle počasí:** server si jednou denně vezme předpověď z Open-Meteo (bez klíče, bod Karlovy Vary, cache na den). Déšť → muzea, solné jeskyně, divadla. Jasno → rozhledny. Při výpadku nebo `WEATHER_ENABLED=False` platí původní výběr podle data. Open-Meteo je externí zdroj dat, ne AI.
+- **Výpravy bez auta:** 3–4 různé druhy míst do 500 m od jedné autobusové zastávky (bez `info` a nebezpečných). Dokončení dá odznaky „První výprava“ a „Cestovatel bez auta“ (3×) a tvora o stupeň vzácnějšího, než odpovídá místu.
+- **Dobrotový pas:** 5 druhů oceněných Dobrot (z `Place.extra.products[].category`, „Cukrářské výrobky“ se slévají s pekařskými, „Ostatní“ se ignoruje). Odznaky „Gurmán“ (3 druhy), „Mistr chutí“ (5). Ověřuje se návštěva výrobce, ne nákup.
+- **Koupací místa:** data kraje nenesou změřenou kvalitu vody, jen druh místa a vybavení (`extra.swim`). Kvalita je odkaz na web KHS. Sezónní odznak „Koupací sezóna“ (3 koupací místa v červnu–srpnu).
+- **Týdenní výzva týmu:** cíl 3 razítka na člena od pondělí, počítá se z razítek členů (`challenge` v odpovědi `teams/`). Bez odměny, jen ukazatel.
+- **Otevřená data zpět:** `GET /api/stats/places.csv` (CC0), razítka po místech, počty 1–4 se uvádějí jako `<5`. JSON `/api/stats/places/` vrací přesné počty (anonymní agregace).
+
 ## 8. Anti-cheat („co nejméně fakovat")
 
 Cíl je minimální podvod při rozumné složitosti, **ne nemožnost podvodu**. V prezentaci to říkáme čestně: webová aplikace nezjistí podvržené GPS na rootnutém zařízení; snižujeme šanci a dopad.
@@ -262,7 +273,7 @@ Ukazujeme to čestně: „Pro dnešní demo máme režim, který přeskočí vzd
 
 Prefix `/api/`. JSON, cookies JWT jako ve stávající šabloně. Dokumentace vzniká automaticky v `/api/docs/` (drf-spectacular); **tato tabulka je zamýšlený tvar, kterým se oba týmy řídí**.
 
-**Auth (stávající + úprava):** `POST auth/register/` (nově `nickname`, `age_group`, `consent_confirmed`), `POST auth/token/`, `POST auth/token/refresh/`, `POST auth/logout/`, `GET/PUT auth/me/`.
+**Auth (stávající + úprava):** `POST auth/register/` (nově `nickname`, `age_group`, `consent_confirmed`), `POST auth/token/`, `POST auth/token/refresh/`, `POST auth/logout/`, `GET/PUT auth/me/` (`PUT {photo_public}` přepíná, zda fotky z razítek vidí ostatní hráči, výchozí ne).
 
 | Metoda | Cesta | Popis |
 |---|---|---|
@@ -273,7 +284,9 @@ Prefix `/api/`. JSON, cookies JWT jako ve stávající šabloně. Dokumentace vz
 | GET | `pets/me/` | Moji PETi. |
 | GET/PATCH | `pets/{id}/` | Detail; PATCH jen `name`. |
 | GET | `badges/` | Katalog + můj postup (`progress`, `target`, `awarded`). |
-| GET | `quests/` | Aktivní questy (`daily`, `weekly3`, `dobrota`). |
+| GET | `quests/` | Aktivní questy (`daily`, `weekly3`, `dobrota`, `dobrota3`, `trail`). |
+| GET | `trails/` | Výpravy bez auta s postupem hráče (7.8). |
+| GET | `food-pass/` | Druhy Dobrot a které hráč ochutnal (7.8). |
 | GET | `leaderboard/` | `?scope=global\|school\|team&metric=stamps\|wins`. |
 | POST | `battles/` | `{mode, pet_id, opponent_nickname?}` → `{battle_id, status}`. `practice` startuje hned. |
 | POST | `battles/queue/` | Zařadí do matchmakingu. |
@@ -283,6 +296,7 @@ Prefix `/api/`. JSON, cookies JWT jako ve stávající šabloně. Dokumentace vz
 | DELETE | `auth/me/` | Smazání účtu včetně fotek. |
 | GET | `users/{nickname}/` | Veřejný profil (nick, level, odznaky, PETi bez fotek). |
 | GET | `stats/places/` | Anonymní agregace pro kraj. |
+| GET | `stats/places.csv` | Návštěvnost míst jako otevřená data (CC0), počty pod 5 skryty. |
 
 Chyby: `{"error_code": "...", "detail": "..."}` (stávající exception handler `core.exceptions` rozšířit).
 

@@ -8,5 +8,11 @@
  {"model": "game.badge", "pk": 7, "fields": {"code": "no_car", "name": "Bez auta", "icon": "🚌", "description": "5 razítek u míst do 300 m od autobusové zastávky.", "rule": {"type": "no_car", "n": 5}}},
  {"model": "game.badge", "pk": 8, "fields": {"code": "summer", "name": "Letní otužilec", "icon": "🌞", "description": "3 přírodní místa v létě (červen–srpen).", "rule": {"type": "season", "months": [6, 7, 8], "category": "nature", "n": 3}}},
  {"model": "game.badge", "pk": 9, "fields": {"code": "sokolov_explorer", "name": "Průzkumník Sokolovska", "icon": "⛏️", "description": "Orazítkuj místa ze 3 kategorií v okrese Sokolov.", "rule": {"type": "district_complete", "okres": "Sokolov", "categories_min": 3}}},
- {"model": "game.badge", "pk": 10, "fields": {"code": "taster", "name": "Ochutnávač", "icon": "🍯", "description": "Navštiv prvního výrobce Dobroty Karlovarského kraje.", "rule": {"type": "count", "category": "food", "n": 1}}}
+ {"model": "game.badge", "pk": 10, "fields": {"code": "taster", "name": "Ochutnávač", "icon": "🍯", "description": "Navštiv prvního výrobce Dobroty Karlovarského kraje.", "rule": {"type": "count", "category": "food", "n": 1}}},
+ {"model": "game.badge", "pk": 11, "fields": {"code": "explorer", "name": "Objevitel", "icon": "🔭", "description": "Orazítkuj 3 málo navštěvovaná místa (bonus ×1,5 XP).", "rule": {"type": "forgotten", "n": 3}}},
+ {"model": "game.badge", "pk": 12, "fields": {"code": "gourmet", "name": "Gurmán", "icon": "🍽️", "description": "Navštiv výrobce ze 3 různých druhů Dobrot.", "rule": {"type": "food_kinds", "n": 3}}},
+ {"model": "game.badge", "pk": 13, "fields": {"code": "taste_master", "name": "Mistr chutí", "icon": "🥖", "description": "Navštiv výrobce ze všech 5 druhů Dobrot Karlovarského kraje.", "rule": {"type": "food_kinds", "n": 5}}},
+ {"model": "game.badge", "pk": 14, "fields": {"code": "trail_1", "name": "První výprava", "icon": "🥾", "description": "Dokonči výpravu bez auta: všechna místa od jedné autobusové zastávky.", "rule": {"type": "trails", "n": 1}}},
+ {"model": "game.badge", "pk": 15, "fields": {"code": "trail_3", "name": "Cestovatel bez auta", "icon": "🧭", "description": "Dokonči 3 výpravy bez auta.", "rule": {"type": "trails", "n": 3}}},
+ {"model": "game.badge", "pk": 16, "fields": {"code": "swimmer", "name": "Koupací sezóna", "icon": "🏊", "description": "Orazítkuj 3 koupací místa v létě (červen–srpen).", "rule": {"type": "season", "months": [6, 7, 8], "category": "nature", "subtype": "Koupací", "n": 3}}}
 ]

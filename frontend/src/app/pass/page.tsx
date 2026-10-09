@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { Guide } from '@/components/guide/Guide';
+import { FoodPass, TrailList } from '@/components/quests/Expeditions';
 import { QuestList } from '@/components/quests/QuestList';
 import { gameApi, type BadgeInfo, type Category, type CheckIn, type PlaceFeature } from '@/lib/api';
 import { CATEGORY } from '@/lib/game';
@@ -79,6 +80,9 @@ export default function PassPage() {
 
       <h2 className="mt-10 text-xl font-bold">Úkoly</h2>
       <QuestList />
+
+      <TrailList />
+      <FoodPass />
 
       {badges.length > 0 && (
         <>

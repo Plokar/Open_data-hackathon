@@ -8,3 +8,4 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 DEMO_MODE = True
+WEATHER_ENABLED = False  # testy nesmí sahat na síť

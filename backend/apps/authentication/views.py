@@ -199,6 +199,11 @@ class UserProfileView(APIView):
         return Response(serializer.data)
 
     def put(self, request):
+        if 'photo_public' in request.data:  # soukromí fotek z razítek (výchozí: soukromé)
+            from apps.game.views import profile_of
+            profile = profile_of(request.user)
+            profile.photo_public = str(request.data['photo_public']).lower() in ('1', 'true')
+            profile.save(update_fields=['photo_public'])
         serializer = UserSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
