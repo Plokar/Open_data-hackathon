@@ -10,7 +10,7 @@ import type { NextRequest } from 'next/server';
  */
 
 const PROTECTED_PATHS = ['/pass', '/pets', '/battle', '/team'];
-const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
+const AUTH_PATHS = ['/start', '/login', '/register', '/forgot-password', '/reset-password'];
 
 
 export function proxy(request: NextRequest) {
@@ -18,14 +18,12 @@ export function proxy(request: NextRequest) {
   const accessToken = request.cookies.get('access_token');
   const isAuthenticated = !!accessToken;
 
-  // Přesměrovat nepřihlášené z chráněných stránek na login
+  // Nepřihlášené z chráněných stránek poslat na onboarding (stačí jméno)
   const isProtected = PROTECTED_PATHS.some((path) =>
     pathname.startsWith(path),
   );
   if (isProtected && !isAuthenticated) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL('/start', request.url));
   }
 
   // Přesměrovat přihlášené z auth stránek na mapu

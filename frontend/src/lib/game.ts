@@ -1,14 +1,15 @@
+import { Castle, Croissant, Droplet, Info, Landmark, Pickaxe, TowerControl, Trees, type LucideIcon } from 'lucide-react';
 import type { Category, PetType, Rarity } from './api';
 
-export const CATEGORY: Record<Category, { label: string; color: string; icon: string }> = {
-  castle: { label: 'Hrady a zámky', color: '#b45309', icon: '🏰' },
-  lookout: { label: 'Rozhledny', color: '#0284c7', icon: '🗼' },
-  spring: { label: 'Prameny', color: '#0d9488', icon: '💧' },
-  culture: { label: 'Kultura', color: '#7c3aed', icon: '🏛️' },
-  nature: { label: 'Příroda', color: '#16a34a', icon: '🌲' },
-  heritage: { label: 'Technické a archeologické', color: '#57534e', icon: '⛏️' },
-  food: { label: 'Dobroty kraje', color: '#db2777', icon: '🥨' },
-  info: { label: 'Infocentra', color: '#64748b', icon: 'ℹ️' },
+export const CATEGORY: Record<Category, { label: string; color: string; Icon: LucideIcon }> = {
+  castle: { label: 'Hrady a zámky', color: '#b45309', Icon: Castle },
+  lookout: { label: 'Rozhledny', color: '#2f6fa8', Icon: TowerControl },
+  spring: { label: 'Prameny', color: '#0d8a8a', Icon: Droplet },
+  culture: { label: 'Kultura', color: '#7a3e6b', Icon: Landmark },
+  nature: { label: 'Příroda', color: '#2e8a4e', Icon: Trees },
+  heritage: { label: 'Technické a archeologické', color: '#6b5e4e', Icon: Pickaxe },
+  food: { label: 'Dobroty kraje', color: '#b83a5e', Icon: Croissant },
+  info: { label: 'Infocentra', color: '#56646c', Icon: Info },
 };
 
 export const PET_TYPE: Record<PetType, { label: string; color: string }> = {
@@ -21,10 +22,10 @@ export const PET_TYPE: Record<PetType, { label: string; color: string }> = {
 };
 
 export const RARITY: Record<Rarity, { label: string; className: string }> = {
-  common: { label: 'Běžný', className: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-300' },
-  rare: { label: 'Vzácný', className: 'bg-sky-500/15 text-sky-700 dark:text-sky-300' },
-  epic: { label: 'Epický', className: 'bg-violet-500/15 text-violet-700 dark:text-violet-300' },
-  legendary: { label: 'Legendární', className: 'bg-amber-500/20 text-amber-700 dark:text-amber-300' },
+  common: { label: 'Běžný', className: 'bg-muted text-muted-foreground' },
+  rare: { label: 'Vzácný', className: 'bg-trail-blue/15 text-trail-blue' },
+  epic: { label: 'Epický', className: 'bg-[#7a3e6b]/15 text-[#7a3e6b] dark:text-[#d9a3c9]' },
+  legendary: { label: 'Legendární', className: 'bg-trail-yellow/30 text-[#6e5108] dark:text-trail-yellow' },
 };
 
 export function formatDistance(m: number | null | undefined) {

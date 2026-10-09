@@ -39,8 +39,12 @@ def places_geojson(request):
 def place_detail(request, pk):
     p = get_object_or_404(Place, pk=pk)
     data = {f.name: getattr(p, f.name) for f in Place._meta.fields}
-    data['stamped'] = request.user.is_authenticated and p.checkins.filter(user=request.user).exists()
-    data['stamp_count'] = p.checkins.filter(is_demo=False).count()
+    mine = request.user.is_authenticated and p.pets.filter(owner=request.user).first()
+    data['stamped'] = bool(mine)
+    data['my_pet'] = mine and {'id': mine.id, 'name': mine.name, 'type': mine.type, 'seed': mine.seed,
+                               'stage': mine.stage, 'rarity': mine.rarity, 'level': mine.level}
+    # Detail místa počítá i demo razítka (jinak po demo claimu svítí „nikdo tu nebyl“); žebříčky a statistiky kraje dál ne.
+    data['stamp_count'] = p.checkins.count()
     return Response(data)
 
 

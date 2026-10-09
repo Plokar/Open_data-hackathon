@@ -3,49 +3,50 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Hammer, Shield, Sword } from 'lucide-react';
+import { Bandage, Handshake, Hammer, Moon, Shield, Sparkles, Sword, Trophy, Zap } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
+import { Arena } from '@/components/battle/Arena';
 import { PetPicker } from '@/components/battle/PetPicker';
-import { PetArt } from '@/components/pet/PetCard';
 import { Button } from '@/components/ui/button';
 import { useWebSocket, type WsMessage } from '@/hooks/useWebSocket';
 import {
   battleApi, errorMessage, gameApi,
-  type BattleDetail, type BattleEnd, type BattleFighter, type BattleState, type Move, type Pet, type TurnResult,
+  type BattleDetail, type BattleEnd, type BattleState, type MoveInfo, type Pet, type TurnResult,
 } from '@/lib/api';
 import { PET_TYPE } from '@/lib/game';
+import { ELEMENT_GLOW } from '@/lib/petArt';
 import { cn } from '@/lib/utils';
-
-const MOVE_LABEL: Record<Move, string> = { attack: 'Útok', heavy: 'Silný úder', guard: 'Obrana' };
 
 function describe(r: TurnResult, you: string, opp: string) {
   return r.events.map((e) => {
     const who = e.actor === 'you' ? you : opp;
-    if (e.move === 'guard') return `${who} se brání${e.heal ? ` a léčí +${e.heal} HP` : ''}.`;
-    if (!e.hit) return `${who}: ${MOVE_LABEL[e.move]} – vedle!`;
+    if (e.kind === 'guard') return `${who}: ${e.name}${e.heal ? `, +${e.heal} HP` : ''}.`;
+    if (!e.damage && e.heal) return `${who}: ${e.name}, +${e.heal} HP.`;
+    if (!e.hit) return `${who}: ${e.name}, vedle!`;
     const eff = e.effectiveness === 1.5 ? ' Velmi účinné!' : e.effectiveness === 0.75 ? ' Málo účinné.' : '';
-    return `${who}: ${MOVE_LABEL[e.move]} za ${e.damage}.${eff}`;
+    return `${who}: ${e.name} za ${e.damage}${e.crit ? ' (kritický zásah)' : ''}.${eff}${e.heal ? ` Vysál +${e.heal} HP.` : ''}`;
   });
 }
 
-function Fighter({ f, label, hit }: { f: BattleFighter; label: string; hit: boolean }) {
-  const pct = Math.round((100 * f.hp) / f.max_hp);
+const MOVE_ICON = { attack: Sword, heavy: Hammer, guard: Shield } as Record<string, typeof Sword>;
+
+function MoveButton({ m, sp, disabled, onClick }: { m: MoveInfo; sp: number; disabled: boolean; onClick: () => void }) {
+  const Icon = MOVE_ICON[m.id] ?? (m.kind === 'guard' ? Shield : Sparkles);
+  const broke = sp < m.cost;
+  const t = m.type ?? 'fortress';
+  const magic = m.kind === 'magic' || m.id === 'bastion';
+  const hint = m.power ? `síla ${m.power}${m.acc < 1 ? ` · ${Math.round(m.acc * 100)} %` : ''}` : m.heal ? `léčí ${Math.round(m.heal * 100)} %` : '½ zranění';
   return (
-    <div className="rounded-2xl border border-border bg-card p-3">
-      <div className="flex items-center gap-3">
-        <div className={cn('transition-transform', hit && 'animate-[shake_0.4s]')}>
-          <PetArt type={f.type} seed={f.seed} size={64} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] text-muted-foreground">{label} · {PET_TYPE[f.type].label}{f.guard && ' · 🛡️ brání se'}</div>
-          <div className="truncate font-bold">{f.name}</div>
-          <div className="mt-1 h-3 rounded-full bg-muted" role="progressbar" aria-valuenow={f.hp} aria-valuemin={0} aria-valuemax={f.max_hp} aria-label={`HP ${label}`}>
-            <div className={cn('h-3 rounded-full transition-all duration-500', pct > 50 ? 'bg-emerald-500' : pct > 20 ? 'bg-amber-500' : 'bg-red-500')} style={{ width: `${pct}%` }} />
-          </div>
-          <div className="mt-0.5 text-xs tabular-nums">{f.hp} / {f.max_hp} HP</div>
-        </div>
-      </div>
-    </div>
+    <button onClick={onClick} disabled={disabled || broke} aria-label={`${m.name}, ${hint}, výdrž ${m.cost}`}
+      className={cn('relative flex min-h-16 cursor-pointer flex-col items-start justify-center overflow-hidden rounded-2xl border-b-4 px-3 py-2 text-left text-white transition-transform active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40',
+        !magic && (m.kind === 'guard' ? 'border-sky-900 bg-sky-700' : 'border-[#1d2a22] bg-[#2e3d34]'))}
+      style={magic ? { background: `linear-gradient(135deg, ${PET_TYPE[t].color}, color-mix(in oklab, ${ELEMENT_GLOW[t]} 55%, ${PET_TYPE[t].color}))`, borderColor: 'rgb(0 0 0 / 0.35)' } : undefined}>
+      <span className="flex items-center gap-1.5 text-sm font-bold leading-tight"><Icon className="h-4 w-4 shrink-0" aria-hidden />{m.name}</span>
+      <span className="mt-0.5 flex w-full items-center justify-between text-[11px] opacity-85">
+        <span>{hint}</span>
+        <span className={cn('flex items-center gap-0.5 font-semibold', broke && 'text-red-200')}><Zap className="h-3 w-3" aria-hidden />{m.cost}</span>
+      </span>
+    </button>
   );
 }
 
@@ -53,10 +54,12 @@ export default function BattlePage() {
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<BattleDetail | null>(null);
   const [state, setState] = useState<BattleState | null>(null);
+  const [results, setResults] = useState<TurnResult[]>([]);
   const [lines, setLines] = useState<string[]>([]);
   const [end, setEnd] = useState<BattleEnd | null>(null);
   const [oppGone, setOppGone] = useState(false);
-  const [hit, setHit] = useState<'you' | 'opp' | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const [showEnd, setShowEnd] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [myPets, setMyPets] = useState<Pet[]>([]);
   const [joinPet, setJoinPet] = useState<number | null>(null);
@@ -81,11 +84,9 @@ export default function BattlePage() {
     } else if (m.type === 'turn_result') {
       const r = m as unknown as TurnResult;
       setOppGone(false);
+      setResults((prev) => [...prev, r]);
       const ls = describe(r, names.current.you, names.current.opp).map((l) => `${r.turn}. ${l}`);
       setLines((prev) => [...ls.reverse(), ...prev].slice(0, 30));
-      const dmg = r.events.filter((e) => e.hit && e.damage);
-      setHit(dmg.length ? (dmg[dmg.length - 1].actor === 'you' ? 'opp' : 'you') : null);
-      setTimeout(() => setHit(null), 450);
     } else if (m.type === 'battle_end') {
       setEnd(m as unknown as BattleEnd);
     } else if (m.type === 'opponent_disconnected') {
@@ -98,13 +99,20 @@ export default function BattlePage() {
     onOpen: (s) => s({ type: 'ready' }),
   });
 
+  // Konec až po doběhnutí animací; prodleva pokryje i chvilku, než aréna začne přehrávat poslední tah.
+  useEffect(() => {
+    if (!end || animating) return;
+    const t = setTimeout(() => setShowEnd(true), 700);
+    return () => clearTimeout(t);
+  }, [end, animating]);
+
   useEffect(() => {
     if (state?.status !== 'active') return;
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
   }, [state?.status]);
 
-  const move = (mv: Move) => {
+  const move = (mv: string) => {
     if (!state?.turn) return;
     send({ type: 'move', turn: state.turn, move: mv });
     setState({ ...state, waiting_for_you: false });
@@ -122,7 +130,7 @@ export default function BattlePage() {
 
   const share = async () => {
     const url = window.location.href;
-    if (navigator.share) await navigator.share({ title: 'Výzva na souboj – ZÁPAD GO', url }).catch(() => {});
+    if (navigator.share) await navigator.share({ title: 'Výzva na souboj, Západ GO', url }).catch(() => {});
     else {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -137,8 +145,8 @@ export default function BattlePage() {
         <h1 className="text-2xl font-extrabold">Výzva na souboj</h1>
         {detail.joinable ? (
           <>
-            <p className="mt-1 text-sm text-muted-foreground">{detail.you?.name} tě vyzývá. Vyber PETa:</p>
-            {myPets.length ? <PetPicker pets={myPets} value={joinPet} onChange={setJoinPet} /> : <p className="mt-2 text-sm">Nejdřív potřebuješ PETa z razítka.</p>}
+            <p className="mt-1 text-sm text-muted-foreground">{detail.you?.name} tě vyzývá. Vyber tvora:</p>
+            {myPets.length ? <PetPicker pets={myPets} value={joinPet} onChange={setJoinPet} /> : <p className="mt-2 text-sm">Nejdřív potřebuješ tvora z razítka.</p>}
             <Button size="lg" className="mt-3 w-full" onClick={join} disabled={!joinPet}>Přijmout souboj</Button>
           </>
         ) : <p className="mt-2 text-sm text-muted-foreground">Tenhle souboj už není volný.</p>}
@@ -153,8 +161,8 @@ export default function BattlePage() {
   return (
     <AppShell>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{{ ranked: 'Hodnocený souboj', friendly: 'Přátelský souboj', practice: 'Trénink' }[detail.mode]}{s?.is_bot && ' · soupeř je bot'}</span>
-        <span>{status === 'connected' ? '● online' : status === 'connecting' ? 'připojuji…' : '○ odpojeno, zkouším znovu'}</span>
+        <span>{{ ranked: 'Hodnocený souboj', friendly: 'Přátelský souboj', practice: 'Trénink' }[detail.mode]}{s?.is_bot && ', soupeř je strážce místa'}</span>
+        <span>{status === 'connected' ? 'online' : status === 'connecting' ? 'připojuji…' : 'odpojeno, zkouším znovu'}</span>
       </div>
 
       {s?.status === 'waiting' && (
@@ -163,54 +171,61 @@ export default function BattlePage() {
           <div className="mx-auto mt-3 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" aria-hidden />
           {detail.mode === 'friendly' && <Button className="mt-4" onClick={share}>{copied ? 'Odkaz zkopírován ✓' : 'Sdílet odkaz'}</Button>}
           {detail.mode === 'ranked' && (
-            <p className="mt-4 text-sm text-muted-foreground">Nikdo zrovna nehraje? <Link href="/battle" className="text-primary underline">Zkus trénink proti botovi</Link>.</p>
+            <p className="mt-4 text-sm text-muted-foreground">Nikdo zrovna nehraje? <Link href="/battle" className="text-primary underline">Zkus trénink proti strážci</Link>.</p>
           )}
         </div>
       )}
 
       {s?.you && s.opp && (
-        <div className="mt-3 space-y-2">
-          <Fighter f={s.opp} label={s.is_bot ? 'Soupeř (bot)' : 'Soupeř'} hit={hit === 'opp'} />
-          <div className="text-center text-sm font-semibold">
-            {s.status === 'active' ? <>Tah {s.turn} · <span className={cn(secs != null && secs <= 5 && 'text-destructive')}>{secs ?? '–'} s</span></> : null}
-          </div>
-          <Fighter f={s.you} label="Ty" hit={hit === 'you'} />
+        <div className="mt-2">
+          <Arena you={s.you} opp={s.opp} results={results} onBusy={setAnimating} />
+          {s.status === 'active' && (
+            <div className="mt-2 flex items-center justify-between text-sm font-semibold">
+              <span>Tah {s.turn}</span>
+              <span className={cn('tabular-nums', secs != null && secs <= 5 && 'text-destructive')}>{secs ?? '–'} s</span>
+            </div>
+          )}
         </div>
       )}
 
       {oppGone && !end && <p className="mt-2 rounded-lg bg-amber-500/15 p-2 text-center text-xs">Soupeř se odpojil. Když se nevrátí, server za něj hraje Útok.</p>}
 
-      {s?.status === 'active' && !end && (
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          {([['attack', Sword, '40 · jistý'], ['heavy', Hammer, '70 · 70 %'], ['guard', Shield, '½ zranění']] as const).map(([mv, Icon, hint]) => (
-            <button key={mv} onClick={() => move(mv)} disabled={!s.waiting_for_you} aria-label={`${MOVE_LABEL[mv]} (${hint})`}
-              className="flex flex-col items-center gap-1 rounded-2xl bg-primary py-4 font-semibold text-primary-foreground disabled:opacity-40">
-              <Icon className="h-6 w-6" aria-hidden />
-              <span className="text-sm">{MOVE_LABEL[mv]}</span>
-              <span className="text-[10px] opacity-80">{hint}</span>
-            </button>
+      {s?.status === 'active' && !end && s.you?.moves && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {s.you.moves.map((m) => (
+            <MoveButton key={m.id} m={m} sp={s.you!.sp} disabled={!s.waiting_for_you || animating} onClick={() => move(m.id)} />
           ))}
-          {!s.waiting_for_you && <p className="col-span-3 text-center text-xs text-muted-foreground">Čekám na soupeře…</p>}
+          {!s.waiting_for_you && !animating && <p className="col-span-2 text-center text-xs text-muted-foreground">Čekám na soupeře…</p>}
         </div>
       )}
 
       {lines.length > 0 && (
-        <ol className="mt-4 space-y-0.5 rounded-xl bg-muted p-3 text-xs" aria-live="polite">
-          {lines.map((l, i) => <li key={i} className={cn(i === 0 && 'font-semibold')}>{l}</li>)}
-        </ol>
+        <details className="mt-4 rounded-xl bg-muted p-3 text-xs">
+          <summary className="cursor-pointer font-semibold">Průběh souboje</summary>
+          <ol className="mt-2 space-y-0.5">
+            {lines.map((l, i) => <li key={i} className={cn(i === 0 && 'font-semibold')}>{l}</li>)}
+          </ol>
+        </details>
       )}
 
-      {end && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal aria-label="Konec souboje">
-          <div className="w-full max-w-xs rounded-3xl bg-background p-6 text-center">
-            <div className="text-5xl" aria-hidden>{end.winner === 'you' ? '🏆' : end.winner === 'draw' ? '🤝' : '💤'}</div>
+      {showEnd && end && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal aria-label="Konec souboje">
+          <div className="hop-in w-full max-w-xs rounded-3xl bg-background p-6 text-center">
+            {(() => { const I = end.winner === 'you' ? Trophy : end.winner === 'draw' ? Handshake : Moon; return <I className="mx-auto h-12 w-12 text-trail-yellow" aria-hidden />; })()}
             <div className="mt-2 text-2xl font-black">{end.winner === 'you' ? 'Vítězství!' : end.winner === 'draw' ? 'Remíza' : 'Prohra'}</div>
             <div className="mt-1 text-sm text-muted-foreground">
-              PET +{end.xp} XP{end.rating_delta ? ` · hodnocení ${end.rating_delta > 0 ? '+' : ''}${end.rating_delta}` : ''}
+              Tvůj tvor +{end.xp} XP{end.rating_delta ? `, hodnocení ${end.rating_delta > 0 ? '+' : ''}${end.rating_delta}` : ''}
             </div>
+            {end.level_up && <div className="mt-3 rounded-xl bg-trail-yellow/25 py-2 text-sm font-bold">Level up! Tvůj tvor je teď na levelu {end.level_up}.</div>}
+            {end.can_evolve && <div className="mt-2 rounded-xl bg-primary/15 py-2 text-sm font-bold text-primary">✦ Tvůj tvor je připravený na evoluci!</div>}
+            {end.injured_until && (
+              <div className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-destructive/10 py-2 text-sm font-semibold text-destructive">
+                <Bandage className="h-4 w-4" aria-hidden /> Tvor je zraněný, 30 min se léčí
+              </div>
+            )}
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Link href="/battle" className="rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground">Znovu</Link>
-              <Link href="/pets" className="rounded-xl bg-muted py-2.5 text-sm font-semibold">PETi</Link>
+              <Link href="/pets" className="rounded-xl bg-muted py-2.5 text-sm font-semibold">{end.can_evolve ? 'Evolvovat' : 'Tvorové'}</Link>
             </div>
           </div>
         </div>

@@ -1,48 +1,80 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Západ GO: turistický pas Karlovarského kraje.
+ * Paleta vychází z turistických značek KČT (červená, modrá, zelená, žlutá)
+ * na papíře s nádechem lišejníku. Světlý režim je výchozí, hraje se venku.
+ */
 :root {
-  --background: #fafafa;
-  --foreground: #09090b;
-  --card: #ffffff;
-  --card-foreground: #09090b;
-  --popover: #ffffff;
-  --popover-foreground: #09090b;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  --destructive: #ef4444;
+  --background: #f2f4ec;
+  --foreground: #1c2b22;
+  --card: #fbfcf8;
+  --card-foreground: #1c2b22;
+  --popover: #fbfcf8;
+  --popover-foreground: #1c2b22;
+  --primary: #2e6a47;
+  --primary-foreground: #f6f8f1;
+  --secondary: #e4e9dc;
+  --secondary-foreground: #1c2b22;
+  --muted: #e6eadf;
+  --muted-foreground: #56645a;
+  --accent: #dfe6d6;
+  --accent-foreground: #1c2b22;
+  --destructive: #b3261e;
   --destructive-foreground: #ffffff;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #4f46e5;
-  --radius: 0.75rem;
+  --border: #d3dacb;
+  --input: #c4ccbb;
+  --ring: #2e6a47;
+  --radius: 0.875rem;
+
+  /* barvy turistických značek */
+  --trail-red: #c2362f;
+  --trail-blue: #2f6fa8;
+  --trail-green: #2e8a4e;
+  --trail-yellow: #e2b13c;
+  --spring: #2f7d9b;
+
+  /* krajina v hero */
+  --hill-far: #d5dccb;
+  --hill-mid: #a9bfa6;
+  --hill-near: #2e6a47;
+  --tree: #3c7a55;
 }
 
 .dark {
-  --background: #09090b;
-  --foreground: #f4f4f5;
-  --card: #111115;
-  --card-foreground: #f4f4f5;
-  --popover: #111115;
-  --popover-foreground: #f4f4f5;
-  --primary: #6366f1;
-  --primary-foreground: #ffffff;
-  --secondary: #18181b;
-  --secondary-foreground: #fafafa;
-  --muted: #1e1e24;
-  --muted-foreground: #a1a1aa;
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #6366f1;
+  /* noční les, ne neutrální černá */
+  --background: #13201a;
+  --foreground: #e6ece1;
+  --card: #1a2a22;
+  --card-foreground: #e6ece1;
+  --popover: #1a2a22;
+  --popover-foreground: #e6ece1;
+  --primary: #6fb98a;
+  --primary-foreground: #0f1a14;
+  --secondary: #22342a;
+  --secondary-foreground: #e6ece1;
+  --muted: #213128;
+  --muted-foreground: #9fb0a3;
+  --accent: #283b30;
+  --accent-foreground: #e6ece1;
+  --destructive: #e5675e;
+  --destructive-foreground: #1a0d0c;
+  --border: #2c3f34;
+  --input: #3a4f42;
+  --ring: #6fb98a;
+
+  --trail-red: #e0574f;
+  --trail-blue: #6aa3d6;
+  --trail-green: #5fb47c;
+  --trail-yellow: #e8bf5a;
+  --spring: #5fb0cc;
+
+  --hill-far: #22342a;
+  --hill-mid: #2b4436;
+  --hill-near: #3f7d58;
+  --tree: #2f5a41;
 }
 
 @theme inline {
@@ -65,20 +97,59 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-trail-red: var(--trail-red);
+  --color-trail-blue: var(--trail-blue);
+  --color-trail-green: var(--trail-green);
+  --color-trail-yellow: var(--trail-yellow);
+  --color-spring: var(--spring);
+
+  --font-sans: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-hand: var(--font-caveat), cursive;
 }
 
-* {
-  border-color: var(--border);
+/* v @layer base, jinak by přebíjelo Tailwind utility jako border-trail-red */
+@layer base {
+  *, ::before, ::after {
+    border-color: var(--border);
+  }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbars */
+h1, h2, h3 {
+  text-wrap: balance;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--trail-yellow) 55%, transparent);
+  color: var(--foreground);
+}
+
+:focus-visible {
+  outline: 2.5px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+input, textarea {
+  caret-color: var(--trail-red);
+}
+
+a {
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -87,11 +158,52 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--input);
   border-radius: 9999px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
+
+/* Leaflet: tooltip a ovládání v barvách aplikace */
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: var(--muted);
+}
+.leaflet-tooltip {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px -4px rgb(28 43 34 / 0.25);
+  font-weight: 600;
+}
+.leaflet-bar a {
+  background: var(--card);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+/* Poloha hráče na mapě */
+.me-icon {
+  background: none;
+  border: none;
+}
+.me-icon svg {
+  position: relative;
+  filter: drop-shadow(0 3px 4px rgb(28 43 34 / 0.35));
+}
+.me-pulse {
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 30px;
+  height: 12px;
+  margin-left: -15px;
+  border-radius: 50%;
+  background: rgb(47 111 168 / 0.45);
+  animation: me-pulse 2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@keyframes me-pulse {
+  from { transform: scale(0.6); opacity: 1; }
+  to { transform: scale(2.2); opacity: 0; }
 }
 
 /* Zásah v souboji */
@@ -99,4 +211,61 @@ body {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-6px) rotate(-4deg); }
   75% { transform: translateX(6px) rotate(4deg); }
+}
+
+/* Průvodci v hero naskočí na hřeben, jedna choreografie při načtení */
+@keyframes hop-in {
+  0% { transform: translateY(28px) scale(0.92); opacity: 0; }
+  60% { transform: translateY(-6px) scale(1.02); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.hop-in {
+  animation: hop-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Razítko dopadne na papír */
+@keyframes stamp-down {
+  0% { transform: scale(1.6) rotate(-14deg); opacity: 0; }
+  70% { transform: scale(0.96) rotate(-7deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-8deg); opacity: 1; }
+}
+.stamp-down {
+  animation: stamp-down 420ms cubic-bezier(0.3, 1.3, 0.5, 1) both;
+}
+
+@keyframes step-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.step-in {
+  animation: step-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Tvor dýchá */
+@keyframes pet-idle {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-3px) scale(1.015, 0.985); }
+}
+.pet-idle {
+  transform-origin: 50% 92%;
+  animation: pet-idle 2.6s ease-in-out infinite;
+}
+
+/* Tlačítko evoluce se třpytí */
+@keyframes evolve-cta {
+  to { background-position: -200% 0; }
+}
+.evolve-cta {
+  animation: evolve-cta 2.4s linear infinite;
+  box-shadow: 0 6px 20px -8px currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hop-in, .stamp-down, .step-in, .me-pulse, .pet-idle, .evolve-cta {
+    animation: none;
+  }
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }

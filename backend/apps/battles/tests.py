@@ -68,3 +68,22 @@ def test_friendly_join_and_ranked_rules(place):
     pb.save()
     with pytest.raises(service.BattleError):
         service.queue(b, pb)                                          # neověřený PET do ranked nesmí
+
+
+def test_loser_gets_injured(place):
+    from django.utils import timezone
+    a, pa = _player('cyril', place)
+    b, pb = _player('dana', place)
+    battle = service.join(service.create_waiting(a, pa, 'friendly').id, b, pb)
+    battle.state['b']['hp'] = 1
+    battle.save()
+    assert service.submit_move(battle.id, a.id, 1, 'attack') and service.submit_move(battle.id, b.id, 1, 'attack')
+    battle.refresh_from_db()
+    assert battle.status == 'finished'
+    loser = pb if battle.winner == 'a' else pa
+    loser.refresh_from_db()
+    assert loser.injured_until > timezone.now()
+    with pytest.raises(service.BattleError) as e:
+        service.create_practice(loser.owner, loser)
+    assert e.value.code == 'PET_INJURED'
+    assert not service.submit_move(battle.id, a.id, 2, 'attack')     # po konci už nic

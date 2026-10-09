@@ -1,27 +1,41 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Bricolage_Grotesque, Caveat } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { CookieProvider } from '@/contexts/CookieContext';
-import { CookieConsentBanner, CookieSettingsModal } from '@/components/cookies';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
+const bricolage = Bricolage_Grotesque({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-bricolage',
   display: 'swap',
 });
 
-const appName = 'ZÁPAD GO';
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+// ponytail: ručně psané písmo jen pro poznámky průvodců a data na razítkách
+const caveat = Caveat({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-caveat',
+  display: 'swap',
+});
+
+const appName = 'Západ GO';
 
 export const metadata: Metadata = {
   title: {
     default: appName,
     template: `%s | ${appName}`,
   },
-  description: 'Pokémon GO pro Karlovarský kraj: razítka, PETi a souboje nad otevřenými daty kraje.',
+  description: 'Turistický pas Karlovarského kraje: sbírej razítka z hradů, rozhleden a pramenů a z každého ti vyroste tvor do souboje.',
   icons: { icon: '/icon.svg', apple: '/icon-192.png' },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f2f4ec' },
+    { media: '(prefers-color-scheme: dark)', color: '#13201a' },
+  ],
 };
 
 export default function RootLayout({
@@ -30,20 +44,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="cs" className={`dark ${inter.variable}`} suppressHydrationWarning>
+    <html lang="cs" className={`${bricolage.variable} ${caveat.variable}`} suppressHydrationWarning>
       <body
-        className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary"
+        className="min-h-dvh bg-background text-foreground antialiased"
         suppressHydrationWarning
       >
+        {/* ponytail: cookie lišta vyjmuta, používáme jen nezbytné cookies (JWT, CSRF); vrátit z components/cookies, až přibude analytika */}
         <ThemeProvider>
-          <CookieProvider>
-            <AuthProvider>{children}</AuthProvider>
-            <CookieConsentBanner />
-            <CookieSettingsModal />
-          </CookieProvider>
+          <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
       </body>
     </html>
   );
 }
-

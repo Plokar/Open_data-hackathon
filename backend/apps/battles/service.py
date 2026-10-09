@@ -12,7 +12,7 @@ from apps.places.models import Place
 from . import engine
 from .models import Battle
 
-TURN_SECONDS = 15
+TURN_SECONDS = 25  # vč. času na animace útoků
 QUEUE_WINDOW = timedelta(seconds=60)
 LEVEL_RANGE = 3
 
@@ -26,7 +26,8 @@ class BattleError(Exception):
 def _fighter(pet):
     cats = [c for c, t in pets.CATEGORY_TYPE.items() if t == pet.type]
     same_type = CheckIn.objects.filter(user_id=pet.owner_id, place__category__in=cats).count()
-    return {**engine.fighter(pets.effective_stats(pet, same_type), pet.type, pet.name), 'seed': pet.seed}
+    return {**engine.fighter(pets.effective_stats(pet, same_type), pet.type, pet.name, pet.stage),
+            'seed': pet.seed, 'rarity': pet.rarity, 'level': pet.level}
 
 
 def _deadline():
@@ -45,6 +46,9 @@ def _check_pet(user, pet, mode):
         raise BattleError('NOT_YOUR_PET', 'Tohle není tvůj PET.')
     if mode == 'ranked' and not pet.verified:
         raise BattleError('PET_NOT_VERIFIED', 'Do hodnoceného souboje smí jen ověření PETi (ne demo).')
+    if pet.injured_until and pet.injured_until > timezone.now():
+        mins = max(1, round((pet.injured_until - timezone.now()).total_seconds() / 60))
+        raise BattleError('PET_INJURED', f'{pet.name} je zraněný z prohraného souboje. Léčí se ještě {mins} min.')
 
 
 def create_practice(user, pet):
@@ -52,9 +56,10 @@ def create_practice(user, pet):
     seed = random.getrandbits(31)
     place = Place.objects.order_by('?').first()
     spec = pets.generate(place.id, place.category, 'common', 'bot', seed)
-    bot = engine.fighter({k: round(spec[k] * (1 + 0.04 * (pet.level - 1))) for k in pets.BASE_STATS},
-                         spec['type'], f'Strážce: {spec["species"]} ({place.name})')
-    bot['seed'] = spec['seed']
+    # Strážce roste s tvým tvorem (level i evoluce), ať trénink zůstane výzvou.
+    bot = engine.fighter(pets.scaled(spec, pet.level, pet.stage), spec['type'],
+                         f'Strážce: {spec["species"]} ({place.name})', pet.stage)
+    bot.update(seed=spec['seed'], rarity='common', level=pet.level)
     b = Battle.objects.create(player_a=user, pet_a=pet, mode='practice', seed=seed,
                               state={'a': _fighter(pet), 'b': bot, 'bot': True})
     _start(b)
@@ -121,12 +126,18 @@ def _finish(b, w):
         if user is None:
             continue
         won = w == side
-        xp = (30 if won else 10) // (2 if b.mode == 'practice' else 1)
+        xp = (40 if won else 12) // (2 if b.mode == 'practice' else 1)
         rating_delta = 0
+        level_up, injured = None, None
         if pet:
+            old = pet.level
             pet.xp += xp
-            pet.level = 1 + pet.xp // 100
-            pet.save(update_fields=['xp', 'level'])
+            pet.level = pets.level_for_xp(pet.xp)
+            level_up = pet.level if pet.level > old else None
+            if not won and w != 'draw':  # poražený tvor je zraněný a chvíli nemůže bojovat
+                pet.injured_until = timezone.now() + pets.INJURY
+                injured = pet.injured_until.isoformat()
+            pet.save(update_fields=['xp', 'level', 'injured_until'])
         prof = profile_of(user)
         if won:
             prof.add_xp(20)
@@ -137,7 +148,8 @@ def _finish(b, w):
             prof.rating += rating_delta
             prof.wins += int(won)
         prof.save()
-        result[side] = {'xp': xp, 'rating_delta': rating_delta}
+        result[side] = {'xp': xp, 'rating_delta': rating_delta, 'level_up': level_up, 'injured_until': injured,
+                        'can_evolve': bool(pet and pets.can_evolve(pet))}
     b.state['result'] = result
 
 
@@ -146,7 +158,7 @@ def submit_move(battle_id, user_id, turn, move):
     b = Battle.objects.select_for_update().get(pk=battle_id)
     side = side_of(b, user_id)
     if b.status != 'active' or side is None or move not in engine.MOVES or turn != b.state['turn'] \
-            or side in b.state['pending']:
+            or side in b.state['pending'] or not engine.can_use(b.state[side], move):
         return False  # duplicitní / opožděný / neplatný tah se ignoruje (10)
     b.state['pending'][side] = move
     if b.state.get('bot'):
@@ -173,9 +185,13 @@ def timeout(battle_id, turn):
 def view(b, side):
     """Stav z pohledu hráče (you/opp) – tvar zprávy `state` z PROJECT_SPEC 10."""
     s, opp = b.state, 'b' if side == 'a' else 'a'
-    pub = lambda f: f and {k: f.get(k) for k in ('hp', 'max_hp', 'guard', 'type', 'name', 'seed')}
+    pub = lambda f: f and {k: f.get(k) for k in ('hp', 'max_hp', 'sp', 'max_sp', 'guard', 'type', 'name', 'seed',
+                                                    'stage', 'rarity', 'level')}
+    you = pub(s.get(side))
+    if you:  # vlastní tahy jen pro hráče, soupeřova kouzla uvidí až v boji
+        you['moves'] = [{'id': m, **engine.MOVES[m], 'type': s[side]['type']} for m in s[side].get('moves', engine.BASIC)]
     return {'type': 'state', 'battle_id': str(b.id), 'mode': b.mode, 'status': b.status, 'turn': s.get('turn'),
-            'you': pub(s.get(side)), 'opp': pub(s.get(opp)), 'deadline': s.get('deadline'),
+            'you': you, 'opp': pub(s.get(opp)), 'deadline': s.get('deadline'),
             'waiting_for_you': b.status == 'active' and side not in s.get('pending', {}), 'is_bot': bool(s.get('bot'))}
 
 
@@ -187,4 +203,5 @@ def turn_result(entry, side):
 def battle_end(b, side):
     w = 'draw' if b.winner == 'draw' else ('you' if b.winner == side else 'opp')
     r = b.state.get('result', {}).get(side, {})
-    return {'type': 'battle_end', 'winner': w, 'xp': r.get('xp', 0), 'rating_delta': r.get('rating_delta', 0)}
+    return {'type': 'battle_end', 'winner': w, 'xp': r.get('xp', 0), 'rating_delta': r.get('rating_delta', 0),
+            'level_up': r.get('level_up'), 'injured_until': r.get('injured_until'), 'can_evolve': r.get('can_evolve', False)}

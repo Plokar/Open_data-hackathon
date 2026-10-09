@@ -13,8 +13,8 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark');
-  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setThemeState] = useState<Theme>('light');
+  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('light');
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
@@ -22,13 +22,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- načtení z localStorage až po hydrataci
       setThemeState(savedTheme);
     } else {
-      setThemeState('dark'); // Default to dark for high-tech hackathon aesthetic
+      setThemeState('light'); // hraje se venku na slunci
     }
   }, []);
 
   useEffect(() => {
     const root = document.documentElement;
-    let effective: 'dark' | 'light' = 'dark';
+    let effective: 'dark' | 'light' = 'light';
 
     if (theme === 'system') {
       effective = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -47,10 +47,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.classList.remove('dark');
     }
 
-    localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Ukládat jen při přepnutí uživatelem; zápis v efektu by při startu přepsal uložené téma výchozím
   const setTheme = (newTheme: Theme) => {
+    localStorage.setItem('theme', newTheme);
     setThemeState(newTheme);
   };
 

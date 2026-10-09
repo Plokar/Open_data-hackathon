@@ -205,6 +205,17 @@ export interface PlaceFeature {
   properties: { id: number; name: string; category: Category; subtype: string; rarity: Rarity; okres: string; is_hazardous: boolean };
 }
 
+/** Fotka místa z Wikimedia Commons, stažená na backend (manage.py fetch_place_photos). */
+export interface PlacePhoto {
+  url: string; // relativní /media/places/<id>.jpg
+  author: string;
+  license: string;
+  source: string;
+}
+
+/** Absolutní URL pro soubory z backendu (/media/...). */
+export const mediaUrl = (path: string) => (path.startsWith('http') ? path : `${API_BASE}${path}`);
+
 export interface PlaceDetail {
   id: number;
   name: string;
@@ -222,9 +233,14 @@ export interface PlaceDetail {
   nearest_stop_m: number | null;
   license: string;
   source_url: string;
-  extra: { products?: { name: string; category: string; year: string }[] };
+  extra: {
+    products?: { name: string; category: string; year: string }[];
+    photo?: PlacePhoto;
+    wiki?: { title: string; extract: string; url: string };
+  };
   stamped: boolean;
   stamp_count: number;
+  my_pet: { id: number; name: string; type: PetType; seed: number; stage: number; rarity: Rarity; level: number } | null | false;
 }
 
 export interface Pet {
@@ -237,14 +253,40 @@ export interface Pet {
   atk: number;
   defense: number;
   spd: number;
+  mag: number;
+  stamina: number;
+  stats: PetStats; // staty v boji (level + evoluce)
   level: number;
   xp: number;
+  xp_level: number;
+  xp_next: number | null;
+  stage: number;
+  stage_label: string;
+  can_evolve: boolean;
+  evolve_level: number | null;
+  injured_until: string | null;
+  moves: MoveInfo[];
   seed: number;
   lore: string;
   verified: boolean;
   is_demo: boolean;
   place: { id: number; name: string; category: Category };
   created_at: string;
+}
+
+export interface PetStats { hp: number; atk: number; defense: number; spd: number; mag: number; stamina: number }
+
+export interface MoveInfo {
+  id: string;
+  name: string;
+  kind: 'phys' | 'magic' | 'guard';
+  power: number;
+  acc: number;
+  cost: number;
+  fx: string;
+  heal?: number;
+  drain?: number;
+  type?: PetType;
 }
 
 export interface CheckIn {
@@ -299,10 +341,12 @@ export interface PublicProfile {
 
 export const gameApi = {
   places: () => apiFetch<{ type: 'FeatureCollection'; features: PlaceFeature[] }>('/api/places/geojson/'),
-  place: (id: string | number) => apiFetch<PlaceDetail>(`/api/places/${id}/`),
+  // no-store: po razítku se musí hned ukázat nový stav (žádná HTTP cache prohlížeče)
+  place: (id: string | number) => apiFetch<PlaceDetail>(`/api/places/${id}/`, { cache: 'no-store' }),
   checkIn: (form: FormData) => apiFetch<CheckInResult>('/api/checkins/', { method: 'POST', body: form }),
-  myCheckins: () => apiFetch<CheckIn[]>('/api/checkins/me/'),
+  myCheckins: () => apiFetch<CheckIn[]>('/api/checkins/me/', { cache: 'no-store' }),
   myPets: () => apiFetch<Pet[]>('/api/pets/me/'),
+  evolvePet: (id: number) => apiFetch<Pet>(`/api/pets/${id}/evolve/`, { method: 'POST' }),
   renamePet: (id: number, name: string) =>
     apiFetch<Pet>(`/api/pets/${id}/`, { method: 'PATCH', body: JSON.stringify({ name }) }),
   badges: () => apiFetch<BadgeInfo[]>('/api/badges/'),
@@ -342,15 +386,21 @@ export function errorMessage(e: unknown): string {
 
 // ── Souboje (PROJECT_SPEC 9, 10) ─────────────────────────────────────────────
 
-export type Move = 'attack' | 'heavy' | 'guard';
+export type Move = string;
 
 export interface BattleFighter {
   hp: number;
   max_hp: number;
+  sp: number;
+  max_sp: number;
   guard: boolean;
   type: PetType;
   name: string;
   seed: number;
+  stage: number;
+  rarity: Rarity;
+  level: number;
+  moves?: MoveInfo[]; // jen u tebe
 }
 
 export interface BattleState {
@@ -369,7 +419,12 @@ export interface BattleState {
 export interface TurnEvent {
   actor: 'you' | 'opp';
   move: Move;
+  name: string;
+  kind: MoveInfo['kind'];
+  fx: string;
+  cost: number;
   hit?: boolean;
+  crit?: boolean;
   damage?: number;
   effectiveness?: number;
   heal?: number;
@@ -386,6 +441,9 @@ export interface BattleEnd {
   winner: 'you' | 'opp' | 'draw';
   xp: number;
   rating_delta: number;
+  level_up: number | null;
+  injured_until: string | null;
+  can_evolve: boolean;
 }
 
 export interface BattleDetail extends Omit<BattleState, 'type'> {
