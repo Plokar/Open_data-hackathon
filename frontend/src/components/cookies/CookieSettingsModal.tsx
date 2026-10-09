@@ -25,6 +25,7 @@ export function CookieSettingsModal() {
   // Synchronizace stavu při otevření
   React.useEffect(() => {
     if (isSettingsOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset formuláře při otevření
       setAnalytics(preferences.analytics);
       setMarketing(preferences.marketing);
     }
@@ -73,7 +74,7 @@ export function CookieSettingsModal() {
                     </Badge>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                    Nezbytné pro základní chod Hackathon OS, udržení přihlašovací relace (JWT),
+                    Nezbytné pro základní chod ZÁPAD GO, udržení přihlašovací relace (JWT),
                     zabezpečení proti CSRF útokům a správu uživatelských práv. Bez těchto údajů web nemůže bezpečně fungovat.
                   </p>
                 </div>

@@ -37,14 +37,14 @@ export default function NotFound() {
               <Zap className="h-5 w-5 fill-current" />
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-bold tracking-tight">Hackathon OS</span>
+              <span className="text-sm font-bold tracking-tight">ZÁPAD GO</span>
               <span className="text-[10px] font-mono text-muted-foreground">Error 404</span>
             </div>
           </Link>
 
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Link href="/dashboard">
+            <Link href="/map">
               <Button size="sm" variant="outline" className="gap-1.5 text-xs">
                 <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
               </Button>
@@ -102,7 +102,7 @@ export default function NotFound() {
       {/* Footer */}
       <footer className="relative z-10 py-6 text-center text-xs text-muted-foreground border-t border-border">
         <div className="mx-auto max-w-7xl px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Hackathon OS v2.0 • 404 Handler</span>
+          <span>ZÁPAD GO</span>
           <div className="flex items-center gap-4">
             <Link href="/privacy" className="hover:text-foreground transition">Zásady soukromí</Link>
             <Link href="/terms" className="hover:text-foreground transition">Podmínky užití</Link>

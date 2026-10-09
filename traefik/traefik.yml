@@ -45,8 +45,8 @@ providers:
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: "admin@yourdomain.com"   # ← Nahradit vaším e-mailem
-      storage: /acme.json
+      email: "CHANGE-ME@example.com"   # ← e-mail týmu pro Let's Encrypt
+      storage: /letsencrypt/acme.json
       # Staging pro testování (odkomentovat při vývoji, zakomentovat pro produkci):
       # caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"
       httpChallenge:

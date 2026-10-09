@@ -18,6 +18,7 @@ from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -38,6 +39,7 @@ COOKIE_SETTINGS = {
     'secure': settings.SIMPLE_JWT.get('AUTH_COOKIE_SECURE', not settings.DEBUG),
     'samesite': settings.SIMPLE_JWT.get('AUTH_COOKIE_SAMESITE', 'Lax'),
     'path': settings.SIMPLE_JWT.get('AUTH_COOKIE_PATH', '/'),
+    'domain': settings.SIMPLE_JWT.get('AUTH_COOKIE_DOMAIN'),
 }
 
 
@@ -63,8 +65,9 @@ def set_jwt_cookies(response: Response, refresh_token) -> Response:
 
 def clear_jwt_cookies(response: Response) -> Response:
     """Smaže JWT cookies (logout)."""
-    response.delete_cookie(settings.SIMPLE_JWT.get('AUTH_COOKIE', 'access_token'))
-    response.delete_cookie(settings.SIMPLE_JWT.get('AUTH_COOKIE_REFRESH', 'refresh_token'))
+    domain = settings.SIMPLE_JWT.get('AUTH_COOKIE_DOMAIN')
+    response.delete_cookie(settings.SIMPLE_JWT.get('AUTH_COOKIE', 'access_token'), domain=domain)
+    response.delete_cookie(settings.SIMPLE_JWT.get('AUTH_COOKIE_REFRESH', 'refresh_token'), domain=domain)
     return response
 
 
@@ -76,6 +79,8 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -102,6 +107,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     Login – vrátí JWT access + refresh token (v body i cookies).
     """
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -181,8 +188,9 @@ class LogoutView(APIView):
 
 class UserProfileView(APIView):
     """
-    GET  /api/auth/me/  – Profil přihlášeného uživatele
-    PUT  /api/auth/me/  – Aktualizace profilu
+    GET    /api/auth/me/  – Profil přihlášeného uživatele
+    PUT    /api/auth/me/  – Aktualizace profilu
+    DELETE /api/auth/me/  – Smazání účtu i fotek
     """
     permission_classes = [IsAuthenticated]
 
@@ -196,6 +204,15 @@ class UserProfileView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        """DELETE /api/auth/me/ – smaže účet včetně razítek, PETů a souborů fotek (PROJECT_SPEC 12.4)."""
+        for checkin in request.user.checkins.exclude(photo=''):
+            checkin.photo.delete(save=False)
+        request.user.delete()
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        clear_jwt_cookies(response)
+        return response
 
 
 class ChangePasswordView(APIView):
@@ -261,15 +278,15 @@ class ForgotPasswordView(APIView):
 
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            reset_url = f"http://localhost:3000/reset-password?uid={uid}&token={token}"
+            reset_url = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
 
-            subject = "Obnova hesla – Hackathon Template"
+            subject = "Obnova hesla – ZÁPAD GO"
             body = f"Ahoj {user.username},\n\npro obnovu hesla klikni na odkaz:\n{reset_url}\n\nOdkaz je platný 24 hodin."
             html_body = f"""
             <div style="font-family: sans-serif; padding: 20px;">
               <h2>Obnova hesla</h2>
               <p>Ahoj <b>{user.username}</b>,</p>
-              <p>obdrželi jsme žádost o obnovu tvého hesla v Hackathon OS.</p>
+              <p>obdrželi jsme žádost o obnovu tvého hesla v ZÁPAD GO.</p>
               <p><a href="{reset_url}" style="background: #4f46e5; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">Nastavit nové heslo</a></p>
               <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Pokud jsi o změnu nežádal/a, tento email ignoruj.</p>
             </div>
@@ -277,7 +294,7 @@ class ForgotPasswordView(APIView):
             send_hackathon_email(to=email, subject=subject, body=body, html_body=html_body)
 
         return Response({
-            'message': 'Pokud je zadaný e-mail v systému, byl odeslán odkaz pro obnovu hesla (zkontroluj Mailhog na :8025).'
+            'message': 'Pokud je zadaný e-mail v systému, poslali jsme na něj odkaz pro obnovu hesla.'
         })
 
 

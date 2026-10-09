@@ -34,7 +34,7 @@ case "$CMD" in
 
   seed)
     echo "🌱 Spouštím seedování demo dat v backendu..."
-    docker compose -f $COMPOSE_FILE exec backend python manage.py seed_demo_data
+    docker compose -f $COMPOSE_FILE exec backend python manage.py loaddata places badges
     ;;
 
   reset)
@@ -43,7 +43,7 @@ case "$CMD" in
     docker compose -f $COMPOSE_FILE up --build -d
     sleep 5
     docker compose -f $COMPOSE_FILE exec backend python manage.py migrate
-    docker compose -f $COMPOSE_FILE exec backend python manage.py seed_demo_data
+    docker compose -f $COMPOSE_FILE exec backend python manage.py loaddata places badges
     echo "✅ Databáze resetována a naplněna."
     ;;
 

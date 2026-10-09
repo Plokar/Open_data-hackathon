@@ -11,7 +11,8 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django_asgi_app = get_asgi_application()
 
 from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.security.websocket import AllowedHostsOriginValidator
+from channels.security.websocket import OriginValidator
+from django.conf import settings
 from apps.ws.middleware import JWTAuthMiddlewareStack
 from apps.ws import routing as ws_routing
 
@@ -20,11 +21,13 @@ application = ProtocolTypeRouter({
     "http": django_asgi_app,
 
     # WebSocket requests → channels URL router
-    "websocket": AllowedHostsOriginValidator(
+    # Frontend běží na jiné subdoméně (www.*) než API → povolit i CORS originy.
+    "websocket": OriginValidator(
         JWTAuthMiddlewareStack(
             URLRouter(
                 ws_routing.websocket_urlpatterns
             )
-        )
+        ),
+        [*settings.ALLOWED_HOSTS, *settings.CORS_ALLOWED_ORIGINS],
     ),
 })

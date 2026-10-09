@@ -38,6 +38,7 @@ export function CookieProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const existing = getStoredConsent();
     if (existing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- načtení souhlasu z úložiště až po hydrataci
       setPreferences(existing);
       setHasAnswered(true);
       setShowBanner(false);

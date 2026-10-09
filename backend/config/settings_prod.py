@@ -10,6 +10,7 @@ ALLOWED_HOSTS = os.environ.get(  # noqa
 
 # ── HTTPS Security ────────────────────────────────────────────────────────────
 SECURE_SSL_REDIRECT = True
+SECURE_REDIRECT_EXEMPT = [r'^api/health/$']  # Docker healthcheck volá http://localhost
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
@@ -20,19 +21,24 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
 # ── Cookies (přísnější v prod) ────────────────────────────────────────────────
-SESSION_COOKIE_SAMESITE = 'Strict'
+SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_AGE = 86400  # 24 hodin
-CSRF_COOKIE_SAMESITE = 'Strict'
+CSRF_COOKIE_SAMESITE = 'Lax'
 
-# ── JWT (přísnější v prod) ────────────────────────────────────────────────────
+# ── JWT ──────────────────────────────────────────────────────────────────────
+# Lax, ne Strict: odkaz na souboj otevřený z chatu (cross-site navigace) musí nést přihlášení.
+# www.<doména> a api.<doména> jsou same-site, takže Lax stačí; doména cookie z AUTH_COOKIE_DOMAIN.
 from datetime import timedelta
 SIMPLE_JWT = {
     **SIMPLE_JWT,  # noqa
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'AUTH_COOKIE_SECURE': True,
-    'AUTH_COOKIE_SAMESITE': 'Strict',
+    'AUTH_COOKIE_SAMESITE': 'Lax',
 }
+
+# Celý sál/škola sdílí jednu veřejnou IP → limity na IP volně, přísné limity jsou per-uživatel (checkin, auth).
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {**REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'], 'anon': '3000/hour', 'auth': '60/minute'}  # noqa
 
 # ── CORS (jen produkční domény) ───────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = os.environ.get(  # noqa
@@ -51,7 +57,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {'min_length': 10},
+        'OPTIONS': {'min_length': 8},  # stejné jako hláška ve frontendu
     },
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
@@ -64,11 +70,11 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.http.ConditionalGetMiddleware',  # ETag / 304 pro places/geojson
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'core.middleware.RateLimitMiddleware',
     'core.middleware.SecurityHeadersMiddleware',
 ]
 
@@ -128,7 +134,7 @@ LOGGING = {
 }
 
 # ── Email (SMTP v produkci) ───────────────────────────────────────────────────
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')  # noqa
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')  # noqa
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))  # noqa
 EMAIL_USE_TLS = True

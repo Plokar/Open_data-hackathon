@@ -1,5 +1,5 @@
 /**
- * API Client – Type-Safe HTTP Wrapper pro Hackathon OS Django Backend
+ * API Client – ZÁPAD GO (Django backend, PROJECT_SPEC 9)
  * Automaticky posílá CSRF token a JWT httpOnly cookies.
  */
 
@@ -22,7 +22,7 @@ async function fetchCsrfToken(): Promise<string> {
   if (match) return match[1];
 
   try {
-    const res = await fetch(`${API_BASE}/api/auth/status/`, { credentials: 'include' });
+    await fetch(`${API_BASE}/api/auth/status/`, { credentials: "include" });
     const matchAfter = document.cookie.match(/csrftoken=([^;]+)/);
     return matchAfter ? matchAfter[1] : '';
   } catch {
@@ -39,8 +39,9 @@ async function apiFetch<T>(
     options.method?.toUpperCase() ?? '',
   );
 
+  // FormData (fotka) si Content-Type s boundary nastaví prohlížeč sám
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
 
@@ -65,11 +66,9 @@ async function apiFetch<T>(
     } catch {
       errorData = { message: response.statusText };
     }
-    const message =
-      (errorData as Record<string, string>)?.detail ||
-      (errorData as Record<string, string>)?.error ||
-      (errorData as Record<string, string>)?.message ||
-      `HTTP Error ${response.status}`;
+    const d = (errorData ?? {}) as Record<string, unknown>;
+    const fieldError = Object.values(d).find(Array.isArray) as string[] | undefined; // DRF validace polí
+    const message = String(d.detail || d.error || d.message || fieldError?.[0] || `HTTP Error ${response.status}`);
     throw new ApiError(message, response.status, errorData);
   }
 
@@ -90,6 +89,15 @@ export interface User {
   last_name: string;
   is_staff: boolean;
   date_joined: string;
+  profile: {
+    nickname: string;
+    level: number;
+    xp: number;
+    school: string;
+    age_group: 'under18' | 'adult';
+    photo_public: boolean;
+    wins: number;
+  };
 }
 
 export interface LoginCredentials {
@@ -104,6 +112,10 @@ export interface RegisterData {
   password2: string;
   first_name?: string;
   last_name?: string;
+  nickname?: string;
+  age_group: 'under18' | 'adult';
+  consent_confirmed: boolean;
+  school?: string;
 }
 
 export interface AuthResponse {
@@ -151,6 +163,8 @@ export const authApi = {
 
   checkStatus: () => apiFetch<AuthStatus>('/api/auth/status/'),
 
+  deleteMe: () => apiFetch<void>('/api/auth/me/', { method: 'DELETE' }),
+
   changePassword: (data: {
     old_password: string;
     new_password: string;
@@ -179,232 +193,278 @@ export const authApi = {
     }),
 };
 
-// ── Projects & Tasks Types ───────────────────────────────────────────────────
+// ── Hra ──────────────────────────────────────────────────────────────────────
 
-export interface Project {
+export type Category = 'castle' | 'lookout' | 'spring' | 'culture' | 'nature' | 'heritage' | 'food' | 'info';
+export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
+export type PetType = 'fortress' | 'view' | 'nature' | 'spring' | 'culture' | 'taste';
+
+export interface PlaceFeature {
+  type: 'Feature';
+  geometry: { type: 'Point'; coordinates: [number, number] };
+  properties: { id: number; name: string; category: Category; subtype: string; rarity: Rarity; okres: string; is_hazardous: boolean };
+}
+
+export interface PlaceDetail {
   id: number;
-  title: string;
-  slug: string;
-  description: string;
-  category: 'ai' | 'web' | 'mobile' | 'fintech' | 'infra';
-  status: 'planning' | 'in_progress' | 'review' | 'completed';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  progress: number;
-  github_repo: string;
-  demo_url: string;
-  created_by: number;
-  created_by_detail?: User;
-  tasks_count?: number;
-  completed_tasks_count?: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Task {
-  id: number;
-  project?: number | null;
-  project_title?: string;
-  title: string;
-  description: string;
-  status: 'todo' | 'in_progress' | 'review' | 'done';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  due_date?: string | null;
-  assignee?: number | null;
-  assignee_detail?: User | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface NotificationItem {
-  id: number;
-  title: string;
-  message: string;
-  link: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  is_read: boolean;
-  created_at: string;
-}
-
-export interface UploadedFileItem {
-  id: number;
-  filename: string;
-  original_name: string;
-  url: string;
-  file_size: number;
-  human_size: string;
-  mime_type: string;
-  uploaded_by?: number;
-  uploaded_by_username?: string;
-  created_at: string;
-}
-
-export interface DashboardStats {
-  metrics: {
-    total_projects: number;
-    active_projects: number;
-    total_tasks: number;
-    done_tasks: number;
-    todo_tasks: number;
-    completion_rate: number;
-    unread_notifications: number;
-  };
-  recent_tasks: Task[];
-  team_members: User[];
-}
-
-// ── Pagination Helper ─────────────────────────────────────────────────────────
-
-function extractResults<T>(data: unknown): T[] {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object' && 'results' in data && Array.isArray((data as { results: unknown }).results)) {
-    return (data as { results: T[] }).results;
-  }
-  return [];
-}
-
-export const projectsApi = {
-  list: async (): Promise<Project[]> => {
-    const data = await apiFetch<Project[] | { results: Project[] }>('/api/projects/');
-    return extractResults<Project>(data);
-  },
-  get: (id: number) => apiFetch<Project>(`/api/projects/${id}/`),
-  create: (data: Partial<Project>) =>
-    apiFetch<Project>('/api/projects/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  update: (id: number, data: Partial<Project>) =>
-    apiFetch<Project>(`/api/projects/${id}/`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-  delete: (id: number) =>
-    apiFetch<void>(`/api/projects/${id}/`, {
-      method: 'DELETE',
-    }),
-};
-
-export const tasksApi = {
-  list: async (params?: { project?: number; status?: string }): Promise<Task[]> => {
-    const query = new URLSearchParams();
-    if (params?.project) query.set('project', String(params.project));
-    if (params?.status) query.set('status', params.status);
-    const qs = query.toString() ? `?${query.toString()}` : '';
-    const data = await apiFetch<Task[] | { results: Task[] }>(`/api/tasks/${qs}`);
-    return extractResults<Task>(data);
-  },
-  get: (id: number) => apiFetch<Task>(`/api/tasks/${id}/`),
-  create: (data: Partial<Task>) =>
-    apiFetch<Task>('/api/tasks/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  updateStatus: (id: number, status: Task['status']) =>
-    apiFetch<Task>(`/api/tasks/${id}/status/`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    }),
-  update: (id: number, data: Partial<Task>) =>
-    apiFetch<Task>(`/api/tasks/${id}/`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-  delete: (id: number) =>
-    apiFetch<void>(`/api/tasks/${id}/`, {
-      method: 'DELETE',
-    }),
-};
-
-export const notificationsApi = {
-  list: async (): Promise<NotificationItem[]> => {
-    const data = await apiFetch<NotificationItem[] | { results: NotificationItem[] }>('/api/notifications/');
-    return extractResults<NotificationItem>(data);
-  },
-  markAllRead: () =>
-    apiFetch<{ message: string }>('/api/notifications/mark-all-read/', {
-      method: 'POST',
-    }),
-  markRead: (id: number) =>
-    apiFetch<NotificationItem>(`/api/notifications/${id}/mark-read/`, {
-      method: 'POST',
-    }),
-};
-
-export const storageApi = {
-  list: async (): Promise<UploadedFileItem[]> => {
-    const data = await apiFetch<UploadedFileItem[] | { results: UploadedFileItem[] }>('/api/upload/');
-    return extractResults<UploadedFileItem>(data);
-  },
-  upload: async (file: File): Promise<UploadedFileItem> => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const headers: Record<string, string> = {};
-    if (typeof document !== 'undefined') {
-      const csrfToken = await fetchCsrfToken();
-      if (csrfToken) headers['X-CSRFToken'] = csrfToken;
-    }
-
-    const response = await fetch(`${API_BASE}/api/upload/`, {
-      method: 'POST',
-      body: formData,
-      headers,
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new ApiError(errorData.error || 'Nahrávání selhalo', response.status, errorData);
-    }
-
-    return response.json();
-  },
-  delete: (id: number) =>
-    apiFetch<void>(`/api/upload/${id}/`, {
-      method: 'DELETE',
-    }),
-};
-
-export const dashboardApi = {
-  getStats: () => apiFetch<DashboardStats>('/api/dashboard/stats/'),
-};
-
-// ── AI Studio Types ──────────────────────────────────────────────────────────
-
-export interface AiGenerateRequest {
-  prompt: string;
-  system_prompt?: string;
-  provider?: string;
-  model?: string;
-  temperature?: number;
-}
-
-export interface AiGenerateResponse {
-  response: string;
-  provider: string;
-  model: string;
-  tokens_used: number;
-  status: string;
-  is_mock?: boolean;
-}
-
-export interface AiProviderInfo {
-  id: string;
   name: string;
-  is_configured: boolean;
-  default_model: string;
-  models: string[];
+  category: Category;
+  subtype: string;
+  lat: number;
+  lon: number;
   description: string;
+  url: string;
+  obec: string;
+  okres: string;
+  rarity: Rarity;
+  is_hazardous: boolean;
+  nearest_stop_name: string;
+  nearest_stop_m: number | null;
+  license: string;
+  source_url: string;
+  extra: { products?: { name: string; category: string; year: string }[] };
+  stamped: boolean;
+  stamp_count: number;
 }
 
-export const aiApi = {
-  generate: (data: AiGenerateRequest) =>
-    apiFetch<AiGenerateResponse>('/api/ai/generate/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  getProviders: () =>
-    apiFetch<{ providers: AiProviderInfo[] }>('/api/ai/providers/'),
+export interface Pet {
+  id: number;
+  name: string;
+  species: string;
+  type: PetType;
+  rarity: Rarity;
+  hp: number;
+  atk: number;
+  defense: number;
+  spd: number;
+  level: number;
+  xp: number;
+  seed: number;
+  lore: string;
+  verified: boolean;
+  is_demo: boolean;
+  place: { id: number; name: string; category: Category };
+  created_at: string;
+}
+
+export interface CheckIn {
+  id: number;
+  created_at: string;
+  distance_m: number;
+  trust: number;
+  verified: boolean;
+  is_demo: boolean;
+  exif_status: string;
+  place: { id: number; name: string; category: Category; okres: string; rarity: Rarity };
+}
+
+export interface BadgeInfo {
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  progress: number;
+  target: number | null;
+  awarded: boolean;
+}
+
+export interface CheckInResult {
+  checkin: CheckIn;
+  pet: Pet;
+  xp_gain: number;
+  level_up: boolean;
+  level: number;
+  new_badges: { code: string; name: string; icon: string }[];
+}
+
+export interface LeaderRow {
+  name: string;
+  level?: number;
+  stamps: number;
+  wins: number;
+  players?: number;
+}
+
+export interface PublicProfile {
+  nickname: string;
+  level: number;
+  xp: number;
+  school: string;
+  wins: number;
+  stamps: number;
+  team: string | null;
+  badges: { code: string; name: string; icon: string; awarded_at: string }[];
+  pets: Pet[];
+}
+
+export const gameApi = {
+  places: () => apiFetch<{ type: 'FeatureCollection'; features: PlaceFeature[] }>('/api/places/geojson/'),
+  place: (id: string | number) => apiFetch<PlaceDetail>(`/api/places/${id}/`),
+  checkIn: (form: FormData) => apiFetch<CheckInResult>('/api/checkins/', { method: 'POST', body: form }),
+  myCheckins: () => apiFetch<CheckIn[]>('/api/checkins/me/'),
+  myPets: () => apiFetch<Pet[]>('/api/pets/me/'),
+  renamePet: (id: number, name: string) =>
+    apiFetch<Pet>(`/api/pets/${id}/`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  badges: () => apiFetch<BadgeInfo[]>('/api/badges/'),
+  leaderboard: (scope: 'global' | 'school' | 'team', metric: 'stamps' | 'wins') =>
+    apiFetch<LeaderRow[]>(`/api/leaderboard/?scope=${scope}&metric=${metric}`),
+  user: (nickname: string) => apiFetch<PublicProfile>(`/api/users/${encodeURIComponent(nickname)}/`),
 };
+
+const ERROR_TEXT: Record<string, string> = {
+  TOO_FAR: 'Jsi moc daleko. Přijď blíž než 300 m k místu.',
+  LOW_ACCURACY: 'GPS je zatím nepřesná. Chvilku počkej venku a zkus to znovu.',
+  TOO_FAST: 'Od posledního razítka ses přesunul nereálně rychle.',
+  CLOCK_SKEW: 'Čas v telefonu nesedí. Zapni automatický čas.',
+  ALREADY_STAMPED: 'Tohle místo už v Pasu máš.',
+  COOLDOWN: 'Moc rychle za sebou. Další razítko za chvíli.',
+  DUPLICATE_PHOTO: 'Tahle fotka už byla použitá. Vyfoť místo znovu.',
+  BAD_PHOTO: 'Soubor není platná fotka.',
+  PHOTO_TOO_LARGE: 'Fotka je moc velká (max. 8 MB).',
+  PHOTO_REQUIRED: 'K razítku je potřeba fotka místa.',
+  DEMO_FORBIDDEN: 'Demo razítko je povolené jen pro organizátory.',
+};
+
+/** Srozumitelná česká hláška z chyby API (error_code → text). */
+export function errorMessage(e: unknown): string {
+  if (e instanceof ApiError) {
+    const code = (e.data as { error_code?: string } | undefined)?.error_code;
+    if (code === 'TOO_FAR') {
+      const d = (e.data as { distance_m?: number }).distance_m;
+      return d ? `Jsi ${d >= 1000 ? (d / 1000).toFixed(1) + ' km' : d + ' m'} daleko. Přijď blíž než 300 m.` : ERROR_TEXT.TOO_FAR;
+    }
+    if (code && ERROR_TEXT[code]) return ERROR_TEXT[code];
+    if (e.status === 401) return 'Nejdřív se přihlas.';
+    return e.message;
+  }
+  return e instanceof Error ? e.message : 'Něco se pokazilo.';
+}
+
+// ── Souboje (PROJECT_SPEC 9, 10) ─────────────────────────────────────────────
+
+export type Move = 'attack' | 'heavy' | 'guard';
+
+export interface BattleFighter {
+  hp: number;
+  max_hp: number;
+  guard: boolean;
+  type: PetType;
+  name: string;
+  seed: number;
+}
+
+export interface BattleState {
+  type: 'state';
+  battle_id: string;
+  mode: 'ranked' | 'friendly' | 'practice';
+  status: 'waiting' | 'active' | 'finished' | 'abandoned';
+  turn: number | null;
+  you: BattleFighter | null;
+  opp: BattleFighter | null;
+  deadline: string | null;
+  waiting_for_you: boolean;
+  is_bot: boolean;
+}
+
+export interface TurnEvent {
+  actor: 'you' | 'opp';
+  move: Move;
+  hit?: boolean;
+  damage?: number;
+  effectiveness?: number;
+  heal?: number;
+}
+
+export interface TurnResult {
+  type: 'turn_result';
+  turn: number;
+  events: TurnEvent[];
+}
+
+export interface BattleEnd {
+  type: 'battle_end';
+  winner: 'you' | 'opp' | 'draw';
+  xp: number;
+  rating_delta: number;
+}
+
+export interface BattleDetail extends Omit<BattleState, 'type'> {
+  log: TurnResult[];
+  joinable: boolean;
+  is_participant: boolean;
+  result?: BattleEnd;
+}
+
+export const battleApi = {
+  create: (mode: 'practice' | 'friendly' | 'ranked', pet_id: number) =>
+    apiFetch<{ battle_id: string; status: string; mode: string }>('/api/battles/', {
+      method: 'POST',
+      body: JSON.stringify({ mode, pet_id }),
+    }),
+  join: (id: string, pet_id: number) =>
+    apiFetch<{ battle_id: string; status: string }>(`/api/battles/${id}/join/`, {
+      method: 'POST',
+      body: JSON.stringify({ pet_id }),
+    }),
+  get: (id: string) => apiFetch<BattleDetail>(`/api/battles/${id}/`),
+};
+
+Object.assign(ERROR_TEXT, {
+  NO_PET: 'Vyber svého PETa.',
+  PET_NOT_VERIFIED: 'Do hodnoceného souboje smí jen ověření PETi (ne demo).',
+  NOT_WAITING: 'Souboj už začal nebo skončil.',
+  SELF: 'Nemůžeš bojovat sám se sebou.',
+});
+
+// ── Agregace pro kraj (PROJECT_SPEC 6.4) ──────────────────────────────────────
+
+export interface PlaceStatRow { id: number; name: string; category: Category; okres: string; stamps: number }
+
+export interface PlaceStats {
+  total_stamps: number;
+  total_players: number;
+  top: PlaceStatRow[];
+  least: PlaceStatRow[];
+  visited: { id: number; lat: number; lon: number; category: Category; name: string; stamps: number }[];
+  by_okres: { okres: string; stamps: number; places: number }[];
+  by_category: { category: Category; stamps: number; places: number }[];
+}
+
+export const statsApi = {
+  places: () => apiFetch<PlaceStats>('/api/stats/places/'),
+};
+
+// ── Questy a týmy (PROJECT_SPEC 7.5, 7.6) ────────────────────────────────────
+
+export interface Quest {
+  code: string;
+  title: string;
+  description: string;
+  reward: string;
+  progress: number;
+  target: number;
+  done: boolean;
+  place_id?: number | null;
+}
+
+export interface Team {
+  name: string;
+  join_code: string;
+  owner: string;
+  members: { nickname: string; level: number }[];
+}
+
+export const teamApi = {
+  quests: () => apiFetch<Quest[]>('/api/quests/'),
+  mine: () => apiFetch<{ team: Team | null }>('/api/teams/'),
+  create: (name: string) => apiFetch<{ team: Team }>('/api/teams/', { method: 'POST', body: JSON.stringify({ name }) }),
+  join: (join_code: string) => apiFetch<{ team: Team }>('/api/teams/join/', { method: 'POST', body: JSON.stringify({ join_code }) }),
+  leave: () => apiFetch<{ team: null }>('/api/teams/leave/', { method: 'POST' }),
+};
+
+Object.assign(ERROR_TEXT, {
+  BAD_CODE: 'Tým s tímto kódem neexistuje.',
+  NAME_TAKEN: 'Tým s tímto názvem už existuje.',
+});
 
 export { apiFetch, ApiError };

@@ -2,175 +2,73 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+export type WsStatus = 'connecting' | 'connected' | 'disconnected';
 
-interface WsMessage {
+export interface WsMessage {
   type: string;
   [key: string]: unknown;
 }
 
-interface UseWebSocketOptions {
-  /** Automaticky se znovu připojit po odpojení */
-  autoReconnect?: boolean;
-  /** Maximální počet pokusů o reconnect (0 = neomezeně) */
-  maxReconnectAttempts?: number;
-  /** Základ pro exponential backoff (ms) */
-  reconnectInterval?: number;
-  /** Callback při přijetí zprávy */
-  onMessage?: (message: WsMessage) => void;
-  /** Callback při připojení */
-  onOpen?: () => void;
-  /** Callback při odpojení */
-  onClose?: (event: CloseEvent) => void;
-  /** Callback při chybě */
-  onError?: (event: Event) => void;
-}
-
-interface UseWebSocketReturn {
-  status: WsStatus;
-  lastMessage: WsMessage | null;
-  sendMessage: (data: WsMessage) => void;
-  disconnect: () => void;
-  reconnect: () => void;
-  reconnectAttempts: number;
-}
-
 const WS_BASE =
   process.env.NEXT_PUBLIC_WS_URL ||
-  (typeof window !== 'undefined'
-    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
-    : 'ws://localhost:8000');
+  (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/^http/, 'ws');
 
 /**
- * useWebSocket – custom hook pro WebSocket spojení s auto-reconnect.
- *
- * @param path  WebSocket path (např. '/ws/echo/' nebo '/ws/room/hackathon/')
- * @param options  Konfigurační možnosti
- *
- * @example
- * const { status, lastMessage, sendMessage } = useWebSocket('/ws/room/test/');
- * sendMessage({ type: 'message', payload: 'Hello!' });
+ * WebSocket s automatickým reconnectem (exponenciální backoff, max 15 s).
+ * Po (znovu)připojení zavolá onOpen – tam pošli {"type":"ready"} pro obnovení stavu.
+ * Zavření s kódem 4xxx (odmítnuto serverem) se neopakuje.
  */
 export function useWebSocket(
-  path: string,
-  options: UseWebSocketOptions = {},
-): UseWebSocketReturn {
-  const {
-    autoReconnect = true,
-    maxReconnectAttempts = 5,
-    reconnectInterval = 1000,
-    onMessage,
-    onOpen,
-    onClose,
-    onError,
-  } = options;
-
+  path: string | null,
+  { onMessage, onOpen }: { onMessage?: (m: WsMessage) => void; onOpen?: (send: (m: WsMessage) => void) => void } = {},
+) {
   const [status, setStatus] = useState<WsStatus>('disconnected');
-  const [lastMessage, setLastMessage] = useState<WsMessage | null>(null);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
-
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shouldReconnectRef = useRef(autoReconnect);
-  const attemptsRef = useRef(0);
-
-  const url = `${WS_BASE}${path}`;
-
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    setStatus('connecting');
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setStatus('connected');
-      attemptsRef.current = 0;
-      setReconnectAttempts(0);
-      onOpen?.();
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as WsMessage;
-        setLastMessage(message);
-        onMessage?.(message);
-      } catch {
-        console.warn('[WS] Failed to parse message:', event.data);
-      }
-    };
-
-    ws.onclose = (event) => {
-      setStatus('disconnected');
-      wsRef.current = null;
-      onClose?.(event);
-
-      // Auto-reconnect s exponential backoff
-      if (
-        shouldReconnectRef.current &&
-        (maxReconnectAttempts === 0 ||
-          attemptsRef.current < maxReconnectAttempts)
-      ) {
-        const delay = Math.min(
-          reconnectInterval * Math.pow(2, attemptsRef.current),
-          30000, // max 30s
-        );
-        attemptsRef.current += 1;
-        setReconnectAttempts(attemptsRef.current);
-
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, delay);
-      }
-    };
-
-    ws.onerror = (event) => {
-      setStatus('error');
-      onError?.(event);
-    };
-  }, [url, maxReconnectAttempts, reconnectInterval, onMessage, onOpen, onClose, onError]);
-
-  // Připojit při mount
+  const ws = useRef<WebSocket | null>(null);
+  const handlers = useRef({ onMessage, onOpen });
   useEffect(() => {
-    shouldReconnectRef.current = autoReconnect;
-    connect();
+    handlers.current = { onMessage, onOpen };
+  });
+
+  const send = useCallback((m: WsMessage) => {
+    if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(m));
+  }, []);
+
+  useEffect(() => {
+    if (!path) return;
+    let stopped = false;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const open = () => {
+      setStatus('connecting');
+      const sock = new WebSocket(`${WS_BASE}${path}`);
+      ws.current = sock;
+      sock.onopen = () => {
+        attempt = 0;
+        setStatus('connected');
+        handlers.current.onOpen?.(send);
+      };
+      sock.onmessage = (e) => {
+        try {
+          handlers.current.onMessage?.(JSON.parse(e.data));
+        } catch {
+          /* nevalidní JSON ignorujeme */
+        }
+      };
+      sock.onclose = (e) => {
+        setStatus('disconnected');
+        if (stopped || (e.code >= 4000 && e.code < 5000)) return;
+        timer = setTimeout(open, Math.min(15000, 500 * 2 ** attempt++));
+      };
+    };
+    open();
 
     return () => {
-      shouldReconnectRef.current = false;
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      wsRef.current?.close(1000, 'Component unmounted');
+      stopped = true;
+      clearTimeout(timer);
+      ws.current?.close(1000);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path]);
+  }, [path, send]);
 
-  const sendMessage = useCallback((data: WsMessage) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(data));
-    } else {
-      console.warn('[WS] Cannot send – socket not connected');
-    }
-  }, []);
-
-  const disconnect = useCallback(() => {
-    shouldReconnectRef.current = false;
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    wsRef.current?.close(1000, 'Manual disconnect');
-  }, []);
-
-  const reconnect = useCallback(() => {
-    shouldReconnectRef.current = autoReconnect;
-    attemptsRef.current = 0;
-    setReconnectAttempts(0);
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    wsRef.current?.close();
-    connect();
-  }, [autoReconnect, connect]);
-
-  return { status, lastMessage, sendMessage, disconnect, reconnect, reconnectAttempts };
+  return { status, send };
 }
