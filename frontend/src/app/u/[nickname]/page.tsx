@@ -9,6 +9,7 @@ import { PetArt } from '@/components/pet/PetCard';
 import { Challenges } from '@/components/battle/Challenges';
 import { MascotArt } from '@/components/guide/Guide';
 import { ShareQr } from '@/components/ui/share-qr';
+import { AccountSettings, ClaimBanner } from '@/components/profile/AccountSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   authApi, errorMessage, friendsApi, gameApi,
@@ -274,6 +275,8 @@ export default function ProfilePage() {
         ))}
       </dl>
 
+      {isMe && user && !user.profile.account_claimed && <ClaimBanner />}
+
       {isMe && <Friends nickname={p.nickname} />}
 
       <h2 className="mt-8 text-xl font-bold">Tvorové <span className="text-base font-semibold text-muted-foreground">{p.pets.length}</span></h2>
@@ -305,6 +308,7 @@ export default function ProfilePage() {
 
       {isMe && (
         <div className="mt-10 space-y-2">
+          <AccountSettings claimed={!!user?.profile.account_claimed} />
           <label className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3 text-sm">
             <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--primary)]" checked={!!user?.profile.photo_public}
               disabled={savingPhoto} onChange={(e) => togglePhotos(e.target.checked)} />
@@ -313,7 +317,7 @@ export default function ProfilePage() {
               <br /><span className="text-muted-foreground">Výchozí je soukromé. Foť jen místa, nikdy lidi.</span>
             </span>
           </label>
-          <button onClick={logout} className="h-12 w-full cursor-pointer rounded-xl border border-border bg-card font-semibold">Odhlásit se</button>
+          <button onClick={() => (user?.profile.account_claimed || window.confirm('Účet nemá e-mail ani heslo. Po odhlášení se k němu už nevrátíš. Opravdu odhlásit?')) && logout()} className="h-12 w-full cursor-pointer rounded-xl border border-border bg-card font-semibold">Odhlásit se</button>
           <button onClick={removeAccount} className="h-12 w-full cursor-pointer rounded-xl font-semibold text-destructive">Smazat účet a všechna data</button>
         </div>
       )}

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { Landscape } from '@/components/brand/Landscape';
 import { TrailMark, type TrailColor } from '@/components/brand/TrailMark';
-import { GUIDES, GuideAvatar, MascotArt, type GuideId } from '@/components/guide/Guide';
+import { GUIDES, Guide, GuideAvatar, MascotArt, type GuideId } from '@/components/guide/Guide';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -208,12 +208,16 @@ export default function StartPage() {
             </div>
             <form onSubmit={create} className="mt-6" noValidate>
               <label htmlFor="name" className="block text-[1.9rem] font-extrabold leading-tight tracking-tight">Jak ti máme říkat?</label>
-              <p className="mt-1 text-muted-foreground">Jméno uvidí ostatní v žebříčku. Nic víc nepotřebujeme.</p>
+              <p className="mt-1 text-muted-foreground">Jméno uvidí ostatní v žebříčku.</p>
               <Input id="name" className="mt-5 h-14 text-lg" value={name} onChange={(e) => { setName(e.target.value); setError(''); }}
                 placeholder="Třeba Bára" maxLength={30} autoComplete="given-name" autoFocus enterKeyHint="go"
                 aria-invalid={!!error} aria-describedby={error ? 'name-error' : undefined} />
               {error && <p id="name-error" role="alert" className="mt-2 text-sm font-medium text-destructive">{error}</p>}
               <Button type="submit" size="lg" className="mt-4 h-14 w-full text-lg" isLoading={busy}>Založit Pas</Button>
+              <Guide who="boza" className="mt-6">
+                Pas teď založíš jen se jménem. Aby ti nezmizel, přidej si pak v <b>profilu e-mail a heslo</b>.
+                Jen tak se k němu vrátíš z jiného telefonu nebo po odhlášení.
+              </Guide>
               <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
                 Založením souhlasíš, že při razítkování použijeme tvou polohu a fotku místa.
                 Fotky vidíš jen ty. <Link href="/privacy" className="underline">Zásady soukromí</Link>

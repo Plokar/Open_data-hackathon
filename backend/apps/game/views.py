@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from apps.battles import engine
 from apps.places.models import Place
 
-from . import ai_hooks, anticheat, badges, pets, quests
+from . import ai_hooks, anticheat, badges, pets, quests, rating
 from .models import Badge, CheckIn, Friendship, Pet, Profile, Team, UserBadge
 
 XP_BY_RARITY = {'common': 50, 'rare': 75, 'epic': 100, 'legendary': 150}
@@ -220,7 +220,7 @@ def top_pet(user):
 
 def person_json(user):
     prof = profile_of(user)
-    return {'nickname': prof.nickname, 'level': prof.level, 'rating': prof.rating, 'top_pet': top_pet(user)}
+    return {'nickname': prof.nickname, 'level': prof.level, 'rating': rating.refresh(user), 'top_pet': top_pet(user)}
 
 
 def friendship_between(a, b):
@@ -293,7 +293,7 @@ def public_profile(request, nickname):
     return Response({
         'friendship': me and friendship_json(friendship_between(me, u), me),
         'friends_count': Friendship.objects.filter(Q(from_user=u) | Q(to_user=u), accepted=True).count(),
-        'rating': prof.rating, 'top_pet': top_pet(u),
+        'rating': rating.refresh(u), 'top_pet': top_pet(u),
         'nickname': prof.nickname, 'level': prof.level, 'xp': prof.xp, 'school': prof.school, 'wins': prof.wins,
         'team': prof.team.name if prof.team else None,
         'stamps': u.checkins.filter(is_demo=False).count(),

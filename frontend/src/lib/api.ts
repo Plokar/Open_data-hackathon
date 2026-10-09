@@ -96,6 +96,7 @@ export interface User {
     school: string;
     age_group: 'under18' | 'adult';
     photo_public: boolean;
+    account_claimed: boolean; // false = účet jen se jménem (vygenerovaný e-mail a heslo)
     wins: number;
   };
 }
@@ -168,6 +169,9 @@ export const authApi = {
   checkStatus: () => apiFetch<AuthStatus>('/api/auth/status/'),
 
   deleteMe: () => apiFetch<void>('/api/auth/me/', { method: 'DELETE' }),
+  /** Pojistit účet ze jména vlastním e-mailem a heslem (u pojištěného účtu s aktuálním heslem). */
+  setCredentials: (data: { email: string; password?: string; password2?: string; current_password?: string }) =>
+    apiFetch<User>('/api/auth/credentials/', { method: 'POST', body: JSON.stringify(data) }),
 
   changePassword: (data: {
     old_password: string;

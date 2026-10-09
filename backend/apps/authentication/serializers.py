@@ -21,6 +21,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
 
+def is_claimed(user):
+    """Onboarding zakládá účet jen se jménem: e-mail hrac-…@zapadgo.cz a náhodné heslo, které hráč nezná.
+    Dokud si v profilu nenastaví vlastní e-mail a heslo, z jiného zařízení se k účtu nevrátí."""
+    return not (user.email.startswith('hrac-') and user.email.endswith('@zapadgo.cz'))
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Serializer pro čtení dat uživatele."""
     profile = serializers.SerializerMethodField()
@@ -34,7 +40,8 @@ class UserSerializer(serializers.ModelSerializer):
         from apps.game.views import profile_of
         p = profile_of(user)
         return {'nickname': p.nickname, 'level': p.level, 'xp': p.xp, 'school': p.school,
-                'age_group': p.age_group, 'photo_public': p.photo_public, 'wins': p.wins}
+                'age_group': p.age_group, 'photo_public': p.photo_public, 'wins': p.wins,
+                'account_claimed': is_claimed(user)}
 
 
 class RegisterSerializer(serializers.ModelSerializer):

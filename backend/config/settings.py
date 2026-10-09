@@ -126,6 +126,10 @@ CHANNEL_LAYERS = {
     },
 }
 
+# ── Admin cheat panel (/panel) ────────────────────────────────────────────────
+ADMIN_PANEL_USERNAME = os.environ.get('ADMIN_PANEL_USERNAME', 'admin')
+ADMIN_PANEL_PASSWORD = os.environ.get('ADMIN_PANEL_PASSWORD', 'admin')
+
 # ── JWT Authentication ────────────────────────────────────────────────────────
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
@@ -187,6 +191,7 @@ REST_FRAMEWORK = {
         'user': '1000/hour',
         'checkin': '30/hour',
         'auth': '20/minute',
+        'panel_login': '10/minute',
     },
     'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',

@@ -29,7 +29,7 @@ class Profile(models.Model):
     school = models.CharField(max_length=120, blank=True, db_index=True)
     xp = models.IntegerField(default=0)
     level = models.IntegerField(default=1)
-    rating = models.IntegerField(default=1000)
+    rating = models.IntegerField(default=0)  # body z apps.game.rating, přepočítává se
     wins = models.IntegerField(default=0)
     photo_public = models.BooleanField(default=False)
     # ponytail: členství jako FK na profilu (1 tým na hráče) místo tabulky TeamMember

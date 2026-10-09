@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import panel, views
 
 urlpatterns = [
     path('checkins/', views.CheckInView.as_view(), name='checkin-create'),
@@ -21,4 +21,11 @@ urlpatterns = [
     path('friends/', views.friends, name='friends'),
     path('friends/<int:pk>/accept/', views.friend_accept, name='friend-accept'),
     path('friends/<int:pk>/', views.friend_remove, name='friend-remove'),
+    path('panel/login/', panel.login, name='panel-login'),
+    path('panel/stats/', panel.stats, name='panel-stats'),
+    path('panel/users/', panel.users, name='panel-users'),
+    path('panel/users/<int:pk>/', panel.user_detail, name='panel-user'),
+    path('panel/users/<int:pk>/badges/', panel.user_badge, name='panel-user-badge'),
+    path('panel/pets/<int:pk>/', panel.pet_detail, name='panel-pet'),
+    path('panel/actions/', panel.action, name='panel-action'),
 ]

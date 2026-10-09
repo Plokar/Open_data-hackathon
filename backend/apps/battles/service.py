@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from apps.game import pets
+from apps.game import pets, rating
 from apps.game.models import CheckIn
 from apps.places.models import Place
 
@@ -128,6 +128,7 @@ def _finish(b, w):
         if user is None:
             continue
         won = w == side
+        before = rating.compute(user)  # před uložením tvora, ať „+N“ ukazuje jen tenhle souboj
         xp = (40 if won else 12) // (2 if b.mode == 'practice' else 1)
         rating_delta = 0
         level_up, injured = None, None
@@ -143,13 +144,13 @@ def _finish(b, w):
         prof = profile_of(user)
         if won:
             prof.add_xp(20)
-        if b.mode == 'ranked':
-            opp = profile_of(b.player_b if side == 'a' else b.player_a)
-            expected = 1 / (1 + 10 ** ((opp.rating - prof.rating) / 400))
-            rating_delta = round(32 * ((1 if won else 0.5 if w == 'draw' else 0) - expected))
-            prof.rating += rating_delta
-            prof.wins += int(won)
+            prof.wins += int(b.mode != 'practice')  # výhry na profilu a v žebříčku: jen proti hráčům
         prof.save()
+        # Hodnocení = body za objevování, výhry, tvory a odznaky (apps.game.rating), ne Elo.
+        # Souboj se ukládá až po _finish, výhru proto přičteme ručně.
+        prof.rating = rating.compute(user) + (rating.WIN_POINTS[b.mode] if won else 0)
+        rating_delta = prof.rating - before
+        prof.save(update_fields=['rating'])
         result[side] = {'xp': xp, 'rating_delta': rating_delta, 'level_up': level_up, 'injured_until': injured,
                         'can_evolve': bool(pet and pets.can_evolve(pet))}
     b.state['result'] = result
