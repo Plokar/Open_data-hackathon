@@ -30,7 +30,7 @@ export default function LoginForm() {
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
-  const redirectUrl = searchParams.get('redirect') || '/dashboard';
+  const redirectUrl = searchParams.get('redirect') || '/map';
 
   React.useEffect(() => {
     if (user) {
@@ -78,7 +78,7 @@ export default function LoginForm() {
             <Zap className="h-5 w-5 fill-current" />
           </div>
           <div>
-            <span className="text-base font-bold tracking-tight">Hackathon OS</span>
+            <span className="text-base font-bold tracking-tight">ZÁPAD GO</span>
             <span className="block text-xs font-mono text-muted-foreground">Vítej v řídicím centru</span>
           </div>
         </div>
@@ -109,7 +109,7 @@ export default function LoginForm() {
         </div>
 
         <div className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Hackathon OS • Django 4.2 &amp; Next.js 16
+          © {new Date().getFullYear()} ZÁPAD GO • Django 4.2 &amp; Next.js 16
         </div>
       </div>
 
@@ -120,7 +120,7 @@ export default function LoginForm() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Zap className="h-4 w-4 fill-current" />
             </div>
-            <span className="font-bold text-sm">Hackathon OS</span>
+            <span className="font-bold text-sm">ZÁPAD GO</span>
           </Link>
           <div className="ml-auto">
             <ThemeToggle />

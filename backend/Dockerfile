@@ -43,7 +43,7 @@ COPY --from=builder /root/.local /root/.local
 # Zkopírovat zdrojový kód
 COPY . .
 
-RUN chmod +x /code/entrypoint.sh
+RUN chmod +x /code/entrypoint.sh && mkdir -p /code/media /code/private_media /code/staticfiles /code/logs
 
 # Non-root uživatel pro bezpečnost
 RUN addgroup --system appgroup && \

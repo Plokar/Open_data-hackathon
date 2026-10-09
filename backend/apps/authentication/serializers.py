@@ -23,11 +23,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer pro čtení dat uživatele."""
+    profile = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'date_joined']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'date_joined', 'profile']
         read_only_fields = ['id', 'is_staff', 'date_joined']
+
+    def get_profile(self, user):
+        from apps.game.views import profile_of
+        p = profile_of(user)
+        return {'nickname': p.nickname, 'level': p.level, 'xp': p.xp, 'school': p.school,
+                'age_group': p.age_group, 'photo_public': p.photo_public, 'wins': p.wins}
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -52,22 +59,38 @@ class RegisterSerializer(serializers.ModelSerializer):
         label='Potvrzení hesla'
     )
 
+    nickname = serializers.RegexField(r'^[\w.-]{3,30}$', required=False,
+                                      error_messages={'invalid': 'Přezdívka: 3–30 znaků, písmena, čísla, . _ -'})
+    age_group = serializers.ChoiceField(choices=['under18', 'adult'])
+    consent_confirmed = serializers.BooleanField()
+    school = serializers.CharField(required=False, allow_blank=True, max_length=120)
+
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password2', 'first_name', 'last_name']
+        fields = ['username', 'email', 'password', 'password2', 'first_name', 'last_name',
+                  'nickname', 'age_group', 'consent_confirmed', 'school']
         extra_kwargs = {
             'first_name': {'required': False},
             'last_name': {'required': False},
         }
 
     def validate(self, attrs):
+        from apps.game.models import Profile
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"password": "Hesla se neshodují."})
+        if not attrs['consent_confirmed']:
+            raise serializers.ValidationError({"consent_confirmed": "Bez souhlasu (u nezletilých zákonného zástupce) se nelze registrovat."})
+        attrs['nickname'] = attrs.get('nickname') or attrs['username'][:30]
+        if Profile.objects.filter(nickname__iexact=attrs['nickname']).exists():
+            raise serializers.ValidationError({"nickname": "Přezdívka je obsazená."})
         return attrs
 
     def create(self, validated_data):
+        from apps.game.models import Profile
         validated_data.pop('password2')
+        profile = {k: validated_data.pop(k, '') for k in ('nickname', 'age_group', 'consent_confirmed', 'school')}
         user = User.objects.create_user(**validated_data)
+        Profile.objects.create(user=user, **profile)
         return user
 
 

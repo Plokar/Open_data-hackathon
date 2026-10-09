@@ -4,11 +4,12 @@ import type { NextRequest } from 'next/server';
 /**
  * Next.js Middleware – ochrana chráněných rout
  *
- * Chráněné routy: /dashboard, /profile, /settings, ...
+ * Chráněné routy vyžadují JWT cookie. V produkci musí mít cookie doménu sdílenou
+ * s API (AUTH_COOKIE_DOMAIN=.domena.cz), jinak ji proxy na www.* neuvidí (PROJECT_SPEC O1).
  * Pokud uživatel nemá JWT cookie → přesměrovat na /login
  */
 
-const PROTECTED_PATHS = ['/dashboard'];
+const PROTECTED_PATHS = ['/pass', '/pets', '/battle', '/team'];
 const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
 
 
@@ -27,10 +28,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Přesměrovat přihlášené z auth stránek na dashboard
+  // Přesměrovat přihlášené z auth stránek na mapu
   const isAuthPage = AUTH_PATHS.some((path) => pathname.startsWith(path));
   if (isAuthPage && isAuthenticated) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/map', request.url));
   }
 
   return NextResponse.next();

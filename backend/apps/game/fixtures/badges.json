@@ -1,0 +1,12 @@
+[
+ {"model": "game.badge", "pk": 1, "fields": {"code": "first", "name": "První razítko", "icon": "🎫", "description": "Získej první razítko do Pasu.", "rule": {"type": "count", "n": 1}}},
+ {"model": "game.badge", "pk": 2, "fields": {"code": "castle_lord", "name": "Hradní pán", "icon": "🏰", "description": "Orazítkuj 5 hradů nebo zámků.", "rule": {"type": "count", "category": "castle", "n": 5}}},
+ {"model": "game.badge", "pk": 3, "fields": {"code": "lookout_all", "name": "Rozhledník", "icon": "🗼", "description": "Vylez na všechny rozhledny kraje.", "rule": {"type": "all_in_category", "category": "lookout"}}},
+ {"model": "game.badge", "pk": 4, "fields": {"code": "springs_kv", "name": "Pramenař", "icon": "💧", "description": "Navštiv všechny přístupné prameny na Karlovarsku.", "rule": {"type": "all_in_category", "category": "spring", "okres": "Karlovy Vary"}}},
+ {"model": "game.badge", "pk": 5, "fields": {"code": "cheb_done", "name": "Chebsko dobyto", "icon": "🛡️", "description": "Orazítkuj místa ze 3 různých kategorií v okrese Cheb.", "rule": {"type": "district_complete", "okres": "Cheb", "categories_min": 3}}},
+ {"model": "game.badge", "pk": 6, "fields": {"code": "foodie", "name": "Dobrotník", "icon": "🥨", "description": "Navštiv 3 výrobce Dobroty Karlovarského kraje.", "rule": {"type": "count", "category": "food", "n": 3}}},
+ {"model": "game.badge", "pk": 7, "fields": {"code": "no_car", "name": "Bez auta", "icon": "🚌", "description": "5 razítek u míst do 300 m od autobusové zastávky.", "rule": {"type": "no_car", "n": 5}}},
+ {"model": "game.badge", "pk": 8, "fields": {"code": "summer", "name": "Letní otužilec", "icon": "🌞", "description": "3 přírodní místa v létě (červen–srpen).", "rule": {"type": "season", "months": [6, 7, 8], "category": "nature", "n": 3}}},
+ {"model": "game.badge", "pk": 9, "fields": {"code": "sokolov_explorer", "name": "Průzkumník Sokolovska", "icon": "⛏️", "description": "Orazítkuj místa ze 3 kategorií v okrese Sokolov.", "rule": {"type": "district_complete", "okres": "Sokolov", "categories_min": 3}}},
+ {"model": "game.badge", "pk": 10, "fields": {"code": "taster", "name": "Ochutnávač", "icon": "🍯", "description": "Navštiv prvního výrobce Dobroty Karlovarského kraje.", "rule": {"type": "count", "category": "food", "n": 1}}}
+]

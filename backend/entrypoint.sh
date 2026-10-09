@@ -62,11 +62,9 @@ if [ "${DJANGO_DEBUG}" = "True" ] && [ -n "${DJANGO_SUPERUSER_USERNAME}" ]; then
     echo "   (superuser already exists, skipping)"
 fi
 
-# ── Seed Demo Data (dev only) ───────────────────────────────────────────────
-if [ "${DJANGO_DEBUG}" = "True" ]; then
-  echo "🌱 Seeding demo data for Hackathon OS..."
-  python manage.py seed_demo_data || echo "   (seed data skipped or already present)"
-fi
+# ── Místa a odznaky z fixture (idempotentní, i v produkci) ──────────────────
+echo "🌱 Loading places + badges fixtures..."
+python manage.py loaddata places badges || echo "   (fixtures skipped)"
 
 
 # ── Start Server ──────────────────────────────────────────────────────────────

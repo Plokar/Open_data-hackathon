@@ -1,5 +1,7 @@
 # ZÁPAD GO – specifikace projektu (pracovní název)
 
+> **Rozdělení práce, stav a zadání pro agenty: `TEAM_AGENTS.md`.**
+>
 > **Tento soubor je zdroj pravdy pro lidi i AI agenty.** Když se něco v kódu rozchází se specifikací, buď se opraví kód, nebo se (po domluvě) opraví tento soubor. Nahrazuje starý obsah `addition.md` (návrh s Firebase a Flutterem je **zrušen**).
 
 Hackathon otevřených dat Karlovarského kraje 2026 (KIC KK + ZČU), Cheb. Start pátek 9. 10. 2026 16:00, prezentace sobota 10. 10. 17:00. Téma se vyhlašuje při zahájení – viz sekci 15 (riziko tématu).
@@ -150,8 +152,8 @@ Nové Django aplikace nahrazují `apps/items` a `apps/projects`. Stávající `a
 - **Pet**: `owner`, `place` (zdrojové místo), `checkin`, `species`, `type` (viz 7.2), `name`, `rarity`, staty `hp`, `atk`, `defense`, `spd`, `level`, `xp`, `seed` (int), `lore` (text, volitelně z AI), `verified` (bool z check-inu), `created_at`.
 - **Badge** (katalog, seed data): `code`, `name`, `description`, `rule` (JSON, viz 7.4), `icon`.
 - **UserBadge**: `user`, `badge`, `awarded_at`.
-- **Team**: `name`, `join_code`, `owner`; **TeamMember**.
-- **Quest** + **UserQuest**: denní a sériové úkoly (7.5).
+- **Team**: `name`, `join_code`, `owner`; členství = `Profile.team` (jeden tým na hráče, místo tabulky TeamMember).
+- Questy (7.5) se počítají z dat bez tabulek (`apps/game/quests.py`).
 
 ### 6.3 `apps/battles`
 - **Battle**: `id` (UUID), `player_a`, `player_b` (null = bot/strážce), `pet_a`, `pet_b`, `mode` (`ranked`/`friendly`/`practice`), `status` (`waiting`/`active`/`finished`/`abandoned`), `seed`, `winner`, `log` (JSON, seznam tahů a výsledků), `created_at`, `finished_at`.
@@ -186,7 +188,7 @@ Pevnost > Výhled > Příroda > Pramen > Kultura > Pevnost.
 Na serveru, tahové, současné rozhodování obou hráčů, výsledek počítá `engine.py` (čistý Python bez Django, plně testovatelný).
 
 - Každý tah hráč vybere ze tří akcí: **Útok** (síla 40, vždy zasáhne), **Silný úder** (síla 70, 70 % šance zásahu), **Obrana** (na další zásah poloviční zranění).
-- Zranění: `floor(power * atk / (defense_eff) * type_mult * rng(0.9, 1.1))`, minimálně 1. Pořadí řeší `spd` (vyšší jedná dřív).
+- Zranění: `floor(power * atk / (defense_eff) * type_mult * rng(0.9, 1.1) * DAMAGE_SCALE)`, minimálně 1; `DAMAGE_SCALE = 0.25` (ladění délky boje). Pořadí řeší `spd` (vyšší jedná dřív).
 - RNG je `random.Random(seed ^ turn)`, takže boj lze z logu **přesně přehrát** a zkontrolovat.
 - Limit 30 tahů, potom vyhrává vyšší zbývající HP v procentech.
 - Časový limit tahu 15 s; po vypršení server automaticky zvolí **Útok**.
@@ -194,7 +196,7 @@ Na serveru, tahové, současné rozhodování obou hráčů, výsledek počítá
   - `ranked` – oba PETi musí být `verified`; vítěz dostane XP a body do žebříčku.
   - `friendly` – výzva kamaráda přes odkaz nebo kód, bez žebříčku.
   - `practice` – proti **botovi (strážce místa)** s popiskem „bot". Pro případ, že není online soupeř (a pro demo). Bot není maskovaný za hráče.
-- **Matchmaking:** fronta v Redis podle levelu (±3), po 10 s čekání nabídne `practice`.
+- **Matchmaking:** fronta podle levelu (±3) – zatím v DB (čekající `ranked` boje z poslední minuty), po 10 s čekání UI nabídne `practice`.
 
 ### 7.4 Odznaky
 Pravidla jsou deklarativní JSON ve fixture, vyhodnocuje je `badges.py` po každém check-inu:
@@ -236,7 +238,7 @@ Cíl je minimální podvod při rozumné složitosti, **ne nemožnost podvodu**.
 4. **Čas klienta:** `client_ts` se liší od serverového času o ≤ 120 s.
 5. **Duplicitní razítko:** unikátní `(user, place)`, jinak `ALREADY_STAMPED`.
 6. **Cooldown:** max. 1 check-in za 60 s na uživatele.
-7. **Fotka:** typ JPEG/PNG/WebP, ≤ 8 MB, ověřit dekódováním (Pillow), ne jen příponou. `sha256` unikátní napříč celou DB (`DUPLICATE_PHOTO`); perceptual hash (`imagehash`) – blízký duplikát fotky stejného místa od jiného uživatele odmítnout.
+7. **Fotka:** typ JPEG/PNG/WebP, ≤ 8 MB, ověřit dekódováním (Pillow), ne jen příponou. `sha256` unikátní napříč celou DB (`DUPLICATE_PHOTO`); perceptual hash (dHash přes Pillow, `anticheat._dhash`) – blízký duplikát fotky stejného místa od jiného uživatele odmítnout.
 8. **EXIF:** pokud fotka nese GPS, musí být do 1 km od místa; pokud nese `DateTimeOriginal`, nesmí být starší než 15 minut. Chybějící EXIF je **povolen** (mobilní prohlížeče ho často mažou), jen sníží `trust`.
 9. **Vision AI (volitelné, vypínatelné `AI_VISION_VERIFY`):** model posoudí, zda fotka odpovídá kategorii místa. Výsledek **jen upravuje `trust`**, nikdy sám neblokuje.
 10. **Trust skóre:** složené z výše uvedených signálů. `trust < 50` → check-in se uloží, `verified = false`, PET nelze použít v `ranked`.
@@ -271,13 +273,14 @@ Prefix `/api/`. JSON, cookies JWT jako ve stávající šabloně. Dokumentace vz
 | GET | `pets/me/` | Moji PETi. |
 | GET/PATCH | `pets/{id}/` | Detail; PATCH jen `name`. |
 | GET | `badges/` | Katalog + můj postup (`progress`, `target`, `awarded`). |
-| GET | `quests/` | Aktivní questy. |
+| GET | `quests/` | Aktivní questy (`daily`, `weekly3`, `dobrota`). |
 | GET | `leaderboard/` | `?scope=global\|school\|team&metric=stamps\|wins`. |
 | POST | `battles/` | `{mode, pet_id, opponent_nickname?}` → `{battle_id, status}`. `practice` startuje hned. |
 | POST | `battles/queue/` | Zařadí do matchmakingu. |
 | POST | `battles/{id}/join/` | Přijetí `friendly` výzvy (kód/odkaz). |
 | GET | `battles/{id}/` | Stav a log (pro přehrání). |
-| GET/POST | `teams/`, `teams/join/` | Týmy podle `join_code`. |
+| GET/POST | `teams/`, `teams/join/`, `teams/leave/` | Můj tým / založit `{name}` / přidat se `{join_code}` / odejít. |
+| DELETE | `auth/me/` | Smazání účtu včetně fotek. |
 | GET | `users/{nickname}/` | Veřejný profil (nick, level, odznaky, PETi bez fotek). |
 | GET | `stats/places/` | Anonymní agregace pro kraj. |
 
@@ -307,9 +310,9 @@ Zapisovat sem každé použití AI v produktu (a stručně i při vývoji):
 
 | Místo | Co AI dělá | Je povinné? | Fallback |
 |---|---|---|---|
-| `AI_VISION_VERIFY` | Posoudí, zda fotka odpovídá kategorii místa, upraví `trust`. | Ne | Vypnuto → `trust` jen z ostatních signálů. |
-| Lore PETa | Krátký text o tvorovi z dat místa. | Ne | Šablonový text. |
-| (stretch) stylizace fotky | Obrázek tvora. | Ne | Procedurální SVG. |
+| `AI_VISION_VERIFY` | Gemini vision odpoví ANO/NE, zda fotka odpovídá kategorii místa → `trust` +10 / −30 (`apps/game/ai_hooks.py`). | Ne (výchozí vypnuto) | Vypnuto, bez klíče nebo při chybě → delta 0. |
+| `AI_LORE` | 2 věty příběhu PETa přes `AI_PROVIDER`. | Ne (výchozí vypnuto) | Šablonový text (`pets.template_lore`). |
+| (stretch) stylizace fotky | Obrázek tvora. | Ne – neimplementováno | Procedurální SVG (`PetArt`). |
 
 Využít stávající `services/ai_service.py` (provider mock/Gemini/OpenAI/Ollama). Mock musí fungovat bez klíče, ať demo nepadá. Vývoj s AI asistenty: tým rozumí a umí obhájit každou část kódu.
 

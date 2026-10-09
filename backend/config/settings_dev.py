@@ -12,6 +12,8 @@ CORS_ALLOW_ALL_ORIGINS = True
 REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {  # noqa
     'anon': '10000/hour',
     'user': '100000/hour',
+    'checkin': '1000/hour',
+    'auth': '1000/minute',
 }
 
 # Dev: Django Debug Toolbar (odkomentovat pokud nainstalován)

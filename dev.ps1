@@ -44,7 +44,7 @@ switch ($Command) {
 
     "seed" {
         Write-Host "[*] Spoustim seedovani demo dat v backendu..." -ForegroundColor Cyan
-        docker compose -f $ComposeFile exec backend python manage.py seed_demo_data
+        docker compose -f $ComposeFile exec backend python manage.py loaddata places badges
     }
 
     "reset" {
@@ -53,7 +53,7 @@ switch ($Command) {
         docker compose -f $ComposeFile up --build -d
         Start-Sleep -Seconds 5
         docker compose -f $ComposeFile exec backend python manage.py migrate
-        docker compose -f $ComposeFile exec backend python manage.py seed_demo_data
+        docker compose -f $ComposeFile exec backend python manage.py loaddata places badges
         Write-Host "[OK] Databaze byla resetovana a naplnena demo daty!" -ForegroundColor Green
     }
 

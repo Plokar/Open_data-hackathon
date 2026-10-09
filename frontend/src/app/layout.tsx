@@ -12,7 +12,7 @@ const inter = Inter({
   display: 'swap',
 });
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Hackathon OS';
+const appName = 'ZÁPAD GO';
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export const metadata: Metadata = {
@@ -20,8 +20,8 @@ export const metadata: Metadata = {
     default: appName,
     template: `%s | ${appName}`,
   },
-  description:
-    'Produkčně připravený hackathon operační systém s JWT auth, WebSockets, AI Studio a PostgreSQL.',
+  description: 'Pokémon GO pro Karlovarský kraj: razítka, PETi a souboje nad otevřenými daty kraje.',
+  icons: { icon: '/icon.svg', apple: '/icon-192.png' },
 };
 
 export default function RootLayout({

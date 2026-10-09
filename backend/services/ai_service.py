@@ -297,3 +297,29 @@ def get_ai_provider(provider_name: Optional[str] = None) -> BaseAIProvider:
         return OpenAIProvider()
 
     return MockAIProvider()
+
+
+def gemini_vision(prompt: str, image_bytes: bytes, mime: str = "image/jpeg", timeout: int = 8) -> Optional[str]:
+    """Krátký dotaz na obrázek přes Gemini. Bez klíče nebo při chybě vrací None (volající má fallback)."""
+    import base64
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return None
+    model = os.environ.get("AI_VISION_MODEL", "gemini-2.5-flash")
+    body = json.dumps({
+        "contents": [{"parts": [
+            {"text": prompt},
+            {"inline_data": {"mime_type": mime, "data": base64.b64encode(image_bytes).decode()}},
+        ]}],
+        "generationConfig": {"temperature": 0, "maxOutputTokens": 5},
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+        data=body, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            parts = json.loads(resp.read())["candidates"][0]["content"]["parts"]
+            return "".join(p.get("text", "") for p in parts)
+    except Exception as e:  # síť, kvóta, formát – hra nesmí kvůli AI spadnout
+        logger.warning(f"Gemini vision failed: {e}")
+        return None

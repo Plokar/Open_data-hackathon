@@ -9,6 +9,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- po hydrataci (ikona závisí na localStorage)
     setMounted(true);
   }, []);
 

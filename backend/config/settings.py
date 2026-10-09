@@ -18,6 +18,7 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(','
 
 # ── Applications ──────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
+    'daphne',  # musí být první: `manage.py runserver` pak obslouží i WebSockety
     # Django core
     'django.contrib.admin',
     'django.contrib.auth',
@@ -38,8 +39,9 @@ INSTALLED_APPS = [
     # Local apps (modulární monolit)
     'apps.authentication',   # Auth & JWT
     'apps.ws',               # WebSocket consumers
-    'apps.items',            # Example domain module
-    'apps.projects',         # Hackathon projects, tasks, notifs, storage, AI
+    'apps.places',           # Místa z otevřených dat kraje
+    'apps.game',             # Profil, razítka, PETi, odznaky
+    'apps.battles',          # Souboje PETů (REST + WebSocket)
 ]
 
 MIDDLEWARE = [
@@ -48,6 +50,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.http.ConditionalGetMiddleware',  # ETag / 304 pro places/geojson
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -146,6 +149,8 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_HTTP_ONLY': True,
     'AUTH_COOKIE_PATH': '/',
     'AUTH_COOKIE_SAMESITE': 'Lax',
+    # Např. ".zapadgo.cz" – cookie pak vidí www.* (Next proxy) i api.* (PROJECT_SPEC O1)
+    'AUTH_COOKIE_DOMAIN': os.environ.get('AUTH_COOKIE_DOMAIN') or None,
 }
 
 # ── Django REST Framework ─────────────────────────────────────────────────────
@@ -178,6 +183,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
         'user': '1000/hour',
+        'checkin': '30/hour',
+        'auth': '20/minute',
     },
     'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -185,8 +192,8 @@ REST_FRAMEWORK = {
 
 # ── Spectacular / OpenAPI / Swagger ───────────────────────────────────────────
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Hackathon OS API',
-    'DESCRIPTION': 'REST API pro moderní hackathon starter boilerplate (Next.js 16 + Django Daphne + PostgreSQL + WebSockets + AI Studio).',
+    'TITLE': 'ZÁPAD GO API',
+    'DESCRIPTION': 'Hra nad otevřenými daty Karlovarského kraje (DATA ZÁPAD).',
     'VERSION': '2.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
@@ -301,6 +308,17 @@ LOGGING = {
         },
     },
 }
+
+# ── ZÁPAD GO – herní nastavení ───────────────────────────────────────────────
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')  # odkazy v e-mailech
+CHECKIN_RADIUS_M = int(os.environ.get('CHECKIN_RADIUS_M', 300))
+# DEMO_MODE: staff smí razítkovat bez kontroly vzdálenosti (PROJECT_SPEC 8.3). V produkci False.
+DEMO_MODE = os.environ.get('DEMO_MODE', 'False') == 'True'
+AI_VISION_VERIFY = os.environ.get('AI_VISION_VERIFY', 'False') == 'True'  # Gemini vision → jen úprava trust
+AI_LORE = os.environ.get('AI_LORE', 'False') == 'True'  # AI příběh PETa (AI_PROVIDER), jinak šablona
+PRIVATE_MEDIA_ROOT = BASE_DIR / 'private_media'  # fotky z check-inů, nikdy ne pod /media/
+DATA_UPLOAD_MAX_MEMORY_SIZE = 9 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 9 * 1024 * 1024
 
 # ── Celery (zakomentováno – odkomentovat pro async úlohy) ─────────────────────
 # CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', f'{REDIS_URL}/1')

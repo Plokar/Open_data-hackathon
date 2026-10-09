@@ -19,6 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
     if (savedTheme) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- načtení z localStorage až po hydrataci
       setThemeState(savedTheme);
     } else {
       setThemeState('dark'); // Default to dark for high-tech hackathon aesthetic
@@ -37,6 +38,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       effective = theme;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronizace s matchMedia
     setResolvedTheme(effective);
 
     if (effective === 'dark') {
