@@ -41,6 +41,7 @@ Týmy a školní žebříček. Cílí na soutěž středoškoláků.
 „Jak se tam dostanu bez auta." U každého místa ukáže nejbližší autobusovou zastávku. Data o zastávkách už máme.
 Léto. Koupací místa s kvalitou vody jako sezónní odznaky.
 Rizika
+
 GPS se dá falšovat. Ber ho jako čestný systém a poznamenej si to do prezentace.
 Fotky a děti. Pravidla mluví o účastnících pod 18 let. Fotky lidí v obličeji bych neukládal veřejně a v prezentaci je potřeba zmínit GDPR.
 Bezpečnost míst. Některá místa (zříceniny, doly) nejsou vhodná pro děti, tak jim nedávej odznaky za nebezpečné vstupy.
