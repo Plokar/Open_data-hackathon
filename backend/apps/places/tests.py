@@ -51,3 +51,16 @@ def test_stats_are_anonymous_and_skip_demo(api_client):
     assert r.data['top'][0]['stamps'] == 1
     assert r.data['by_okres'] == [{'okres': 'Cheb', 'stamps': 1, 'places': 1}]
     assert 'tajny_hrac' not in str(r.content)
+
+
+def test_photo_name_matching():
+    from apps.places.photos import name_score
+    assert name_score('Hrad Cheb', 'Cheb (hrad)') > 1
+    assert name_score('Rozhledna Háj', 'Háj (rozhledna, Aš)') > 1
+    assert name_score('Hrad Cheb', 'Kostel svatého Jana (Cheb)') < 0.5
+    assert name_score('Hrad Cheb', 'Cheb') < name_score('Hrad Cheb', 'Cheb (hrad)')  # hrad má přednost před městem
+    assert name_score('Hrad Seeberg (Ostroh)', 'Seeberg') >= 0.5
+    assert name_score('Zřícenina hradu Kynžvart', 'Kynžvart (hrad)') > 1
+    assert name_score('Krásno', 'Krásno (okres Sokolov)') == 1
+    assert name_score('Kostel svatého Mikuláše', 'Kostel svatého Jana (Cheb)') < 0.5  # obecná slova nestačí
+    assert name_score('Alena Králová', 'Stružná') == 0

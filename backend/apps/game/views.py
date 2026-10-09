@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.battles import engine
 from apps.places.models import Place
 
 from . import ai_hooks, anticheat, badges, pets, quests
@@ -34,9 +35,17 @@ def profile_of(user):
 
 
 def pet_json(p):
+    injured = p.injured_until if p.injured_until and p.injured_until > timezone.now() else None
     return {
         'id': p.id, 'name': p.name, 'species': p.species, 'type': p.type, 'rarity': p.rarity,
-        'hp': p.hp, 'atk': p.atk, 'defense': p.defense, 'spd': p.spd, 'level': p.level, 'xp': p.xp,
+        'hp': p.hp, 'atk': p.atk, 'defense': p.defense, 'spd': p.spd, 'mag': p.mag, 'stamina': p.stamina,
+        # ponytail: bez bonusu za razítka stejného typu (to by byl dotaz na každého PETa), ten se přičte až v boji
+        'stats': pets.effective_stats(p),
+        'level': p.level, 'xp': p.xp, 'xp_level': pets.xp_for_level(p.level),
+        'xp_next': pets.xp_for_level(p.level + 1) if p.level < pets.MAX_LEVEL else None,
+        'stage': p.stage, 'stage_label': pets.STAGES[p.stage][0], 'can_evolve': pets.can_evolve(p),
+        'evolve_level': pets.EVOLVE_LEVEL.get(p.stage + 1), 'injured_until': injured,
+        'moves': [{'id': m, **engine.MOVES[m]} for m in engine.moves_for(p.type, p.stage)],
         'seed': p.seed, 'lore': p.lore, 'verified': p.verified, 'is_demo': p.checkin.is_demo,
         'place': {'id': p.place_id, 'name': p.place.name, 'category': p.place.category},
         'created_at': p.created_at,
@@ -174,6 +183,19 @@ def pet_detail(request, pk):
             return err('BAD_NAME', 'Jméno musí mít 1–40 znaků.')
         p.name = name
         p.save(update_fields=['name'])
+    return Response(pet_json(p))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def pet_evolve(request, pk):
+    with transaction.atomic():
+        p = get_object_or_404(Pet.objects.select_for_update().select_related('place', 'checkin'), pk=pk, owner=request.user)
+        if not pets.can_evolve(p):
+            need = pets.EVOLVE_LEVEL.get(p.stage + 1)
+            return err('CANNOT_EVOLVE', f'Evoluce je možná od levelu {need}.' if need else 'Tvor je už plně vyvinutý.')
+        p.stage += 1
+        p.save(update_fields=['stage'])
     return Response(pet_json(p))
 
 

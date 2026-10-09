@@ -1,62 +1,118 @@
-import type { Pet, PetType } from '@/lib/api';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Bandage, Sparkles } from 'lucide-react';
+import type { Pet, PetStats, PetType, Rarity } from '@/lib/api';
 import { PET_TYPE, RARITY } from '@/lib/game';
+import { ELEMENT_GLOW, petDataUrl } from '@/lib/petArt';
 import { cn } from '@/lib/utils';
 
-/** Deterministická ilustrace PETa: tvar podle typu, barvy a detaily ze seedu. */
-export function PetArt({ type, seed, size = 120 }: { type: PetType; seed: number; size?: number }) {
-  const n = (k: number) => Math.floor(seed / 7 ** k) % 1000;
-  const hue = n(1) % 360;
-  const base = PET_TYPE[type].color;
-  const eyeY = 54 + (n(2) % 6);
-  const wide = 30 + (n(3) % 8);
-  const hats: Record<PetType, React.ReactNode> = {
-    fortress: <path d="M30 34h60v-12h-10v6h-8v-6h-8v6h-8v-6h-8v6h-8v-6H30z" fill={base} stroke="#0003" />,
-    view: <><line x1="60" y1="30" x2="60" y2="10" stroke={base} strokeWidth="4" /><circle cx="60" cy="9" r="6" fill={`hsl(${hue} 80% 60%)`} /></>,
-    nature: <path d="M60 32c-18-4-22-20-10-26 4 12 16 14 10 26zm0 0c14-6 26-2 26 8-10 0-20 2-26-8z" fill="#22c55e" />,
-    spring: <path d="M60 4c8 12 12 18 12 24a12 12 0 0 1-24 0c0-6 4-12 12-24z" fill="#38bdf8" />,
-    culture: <path d="M38 34l6-18 8 10 8-14 8 14 8-10 6 18z" fill="#facc15" stroke="#0003" />,
-    taste: <circle cx="60" cy="22" r="11" fill="none" stroke="#d97706" strokeWidth="6" strokeDasharray="10 4" />,
-  };
+/** Ilustrace tvora z generátoru (lib/petArt): stavba, doplňky a barvy ze seedu, vzhled podle evoluce a rarity. */
+export function PetArt({ type, seed, size = 120, label, stage = 1, rarity = 'common', back = false, className }: {
+  type: PetType; seed: number; size?: number; label?: string; stage?: number; rarity?: Rarity; back?: boolean; className?: string;
+}) {
   return (
-    <svg viewBox="0 0 120 120" width={size} height={size} role="img" aria-label={`Ilustrace PETa typu ${PET_TYPE[type].label}`}>
-      <ellipse cx="60" cy="112" rx="30" ry="5" fill="#0002" />
-      <ellipse cx="60" cy="70" rx={wide} ry="38" fill={base} />
-      <ellipse cx="60" cy="80" rx={wide - 12} ry="22" fill={`hsl(${hue} 70% 85%)`} opacity="0.9" />
-      {hats[type]}
-      <circle cx={60 - 12} cy={eyeY} r="7" fill="#fff" />
-      <circle cx={60 + 12} cy={eyeY} r="7" fill="#fff" />
-      <circle cx={60 - 11 + (n(4) % 3)} cy={eyeY + 1} r="3.5" fill="#111" />
-      <circle cx={60 + 13 - (n(4) % 3)} cy={eyeY + 1} r="3.5" fill="#111" />
-      <path d={`M52 ${eyeY + 14} q8 ${4 + (n(5) % 6)} 16 0`} stroke="#111" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-      <circle cx="40" cy={eyeY + 10} r="4" fill={`hsl(${(hue + 340) % 360} 80% 70%)`} opacity="0.6" />
-      <circle cx="80" cy={eyeY + 10} r="4" fill={`hsl(${(hue + 340) % 360} 80% 70%)`} opacity="0.6" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element -- lokální data URL SVG, next/image tu nic nepřidá
+    <img src={petDataUrl({ type, seed, stage, rarity, back })} width={size} height={size} alt={label ?? `Tvor typu ${PET_TYPE[type].label}`}
+      className={className} draggable={false} />
   );
 }
 
-export function PetCard({ pet, className, children }: { pet: Pet; className?: string; children?: React.ReactNode }) {
+const STAT_ROWS: [keyof PetStats, string, number][] = [
+  ['hp', 'Život', 320], ['atk', 'Útok', 70], ['defense', 'Obrana', 45],
+  ['mag', 'Magie', 70], ['spd', 'Rychlost', 40], ['stamina', 'Výdrž', 260],
+];
+
+/** Odpočet zranění; vrací null, když je tvor zdravý. */
+export function useInjury(until: string | null | undefined) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!until) return;
+    const t = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, [until]);
+  const ms = until ? new Date(until).getTime() - now : 0;
+  return ms > 0 ? Math.ceil(ms / 60000) : null;
+}
+
+export function PetCard({ pet, className, children, onEvolve }: {
+  pet: Pet; className?: string; children?: React.ReactNode; onEvolve?: () => void;
+}) {
   const t = PET_TYPE[pet.type];
+  const injured = useInjury(pet.injured_until);
+  const glow = ELEMENT_GLOW[pet.type];
+  const xpPct = pet.xp_next ? Math.round((100 * (pet.xp - pet.xp_level)) / (pet.xp_next - pet.xp_level)) : 100;
   return (
-    <div className={cn('rounded-2xl border-2 bg-card p-4', className)} style={{ borderColor: t.color }}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="text-lg font-bold leading-tight">{pet.name}</div>
-          <div className="text-xs text-muted-foreground">{pet.species} · {t.label} · lvl {pet.level}</div>
+    <div className={cn('overflow-hidden rounded-2xl border border-border bg-card', className)}>
+      <div className="relative flex justify-center overflow-hidden pt-3"
+        style={{ background: `radial-gradient(120% 90% at 50% 100%, color-mix(in oklab, ${glow} 30%, transparent), transparent 70%), color-mix(in oklab, ${t.color} 14%, var(--card))` }}>
+        <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1">
+          <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', RARITY[pet.rarity].className)}>{RARITY[pet.rarity].label}</span>
+          <span className="rounded-full bg-card/80 px-2 py-0.5 text-xs font-semibold">{pet.stage_label}</span>
+          {pet.is_demo && <span className="rounded-full bg-trail-yellow/30 px-2 py-0.5 text-xs font-semibold">demo</span>}
+          {!pet.verified && !pet.is_demo && <span className="rounded-full bg-muted px-2 py-0.5 text-xs">neověřený</span>}
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', RARITY[pet.rarity].className)}>{RARITY[pet.rarity].label}</span>
-          {pet.is_demo && <span className="rounded-full bg-orange-500/20 px-2 py-0.5 text-[11px] font-semibold text-orange-700 dark:text-orange-300">demo</span>}
-          {!pet.verified && !pet.is_demo && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">neověřený</span>}
-        </div>
+        <span className="absolute right-3 top-3 z-10 font-hand text-2xl leading-none" style={{ color: t.color }}>lvl {pet.level}</span>
+        <PetArt type={pet.type} seed={pet.seed} stage={pet.stage} rarity={pet.rarity} size={170}
+          className={cn('pet-idle', injured && 'opacity-60 grayscale')} />
+        {injured && (
+          <div className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-2 rounded-xl bg-background/90 py-1.5 text-sm font-semibold text-destructive">
+            <Bandage className="h-4 w-4" aria-hidden /> Zraněný, léčí se ještě {injured} min
+          </div>
+        )}
       </div>
-      <div className="my-2 flex justify-center"><PetArt type={pet.type} seed={pet.seed} /></div>
-      <dl className="grid grid-cols-4 gap-1 text-center text-xs">
-        {([['HP', pet.hp], ['Útok', pet.atk], ['Obrana', pet.defense], ['Rychlost', pet.spd]] as const).map(([k, v]) => (
-          <div key={k} className="rounded-lg bg-muted py-1"><dt className="text-muted-foreground">{k}</dt><dd className="font-bold">{v}</dd></div>
-        ))}
-      </dl>
-      <p className="mt-2 text-xs text-muted-foreground">{pet.lore}</p>
-      {children}
+      <div className="p-4">
+        <div className="text-lg font-bold leading-tight">{pet.name}</div>
+        <div className="text-sm text-muted-foreground">{pet.species}, typ {t.label.toLowerCase()}</div>
+
+        <div className="mt-3">
+          <div className="flex justify-between text-[11px] text-muted-foreground">
+            <span>XP {pet.xp}</span>
+            <span>{pet.xp_next ? `další level za ${pet.xp_next - pet.xp}` : 'maximální level'}</span>
+          </div>
+          <div className="mt-1 h-2 rounded-full bg-muted" role="progressbar" aria-valuenow={xpPct} aria-valuemin={0} aria-valuemax={100} aria-label="Postup na další level">
+            <div className="h-2 rounded-full" style={{ width: `${xpPct}%`, background: t.color }} />
+          </div>
+        </div>
+
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl bg-muted p-3">
+          {STAT_ROWS.map(([k, label, max]) => (
+            <div key={k} className="flex items-center gap-2">
+              <dt className="w-16 text-[11px] text-muted-foreground">{label}</dt>
+              <dd className="flex flex-1 items-center gap-1.5">
+                <span className="w-8 text-right text-sm font-bold tabular-nums">{pet.stats[k]}</span>
+                <span className="h-1.5 flex-1 rounded-full bg-background">
+                  <span className="block h-1.5 rounded-full" style={{ width: `${Math.min(100, (100 * pet.stats[k]) / max)}%`, background: k === 'mag' ? glow : t.color }} />
+                </span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Útoky">
+          {pet.moves.map((m) => (
+            <span key={m.id} className={cn('rounded-full px-2.5 py-1 text-xs font-semibold', m.kind === 'magic' ? 'text-white' : 'bg-muted')}
+              style={m.kind === 'magic' ? { background: `linear-gradient(135deg, ${t.color}, color-mix(in oklab, ${glow} 70%, ${t.color}))` } : undefined}
+              title={`${m.power ? `síla ${m.power}, ` : ''}výdrž ${m.cost}`}>
+              {m.kind === 'magic' && '✦ '}{m.name}
+            </span>
+          ))}
+          {pet.stage < 3 && <span className="rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground">+ kouzlo po evoluci</span>}
+        </div>
+
+        {pet.can_evolve && onEvolve ? (
+          <button onClick={onEvolve}
+            className="evolve-cta mt-4 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl font-bold text-white"
+            style={{ background: `linear-gradient(110deg, ${t.color}, ${glow}, ${t.color})`, backgroundSize: '200% 100%' }}>
+            <Sparkles className="h-5 w-5" aria-hidden /> Evoluce!
+          </button>
+        ) : pet.evolve_level && (
+          <p className="mt-3 text-xs text-muted-foreground">Evoluce na level {pet.evolve_level}.</p>
+        )}
+
+        {pet.lore && <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{pet.lore}</p>}
+        {children}
+      </div>
     </div>
   );
 }

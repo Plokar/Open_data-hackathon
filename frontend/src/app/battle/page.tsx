@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bot, Swords, Users } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
-import { PetPicker } from '@/components/battle/PetPicker';
+import { PetPicker, isInjured } from '@/components/battle/PetPicker';
 import { Button } from '@/components/ui/button';
+import { Guide } from '@/components/guide/Guide';
 import { battleApi, errorMessage, gameApi, type Pet } from '@/lib/api';
 
 export default function BattleLobby() {
@@ -19,7 +20,7 @@ export default function BattleLobby() {
   useEffect(() => {
     gameApi.myPets().then((ps) => {
       setPets(ps);
-      const best = [...ps].sort((a, b) => Number(b.verified) - Number(a.verified) || b.level - a.level || b.atk - a.atk)[0];
+      const best = [...ps].sort((a, b) => Number(isInjured(a)) - Number(isInjured(b)) || Number(b.verified) - Number(a.verified) || b.level - a.level || b.atk - a.atk)[0];
       setPetId(best?.id ?? null);
     }).catch((e) => { setPets([]); setError(errorMessage(e)); });
   }, []);
@@ -41,32 +42,42 @@ export default function BattleLobby() {
 
   return (
     <AppShell>
-      <h1 className="text-2xl font-extrabold">Souboj</h1>
+      <h1 className="text-3xl font-extrabold">Souboj</h1>
       {pets?.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">Nejdřív potřebuješ PETa – získáš ho razítkem. <Link href="/map" className="text-primary underline">Na mapu</Link>.</p>
+        <Guide who="vridla" className="mt-6"
+          action={<Link href="/map" className="inline-flex h-11 items-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground">Najít místo</Link>}>
+          Do souboje potřebuješ tvora a toho ti vylíhnu z prvního razítka. Tak hurá ven.
+        </Guide>
       ) : (
         <>
-          <h2 className="mt-4 text-sm font-semibold text-muted-foreground">Vyber PETa</h2>
+          <h2 className="mt-5 font-semibold">Koho pošleš?</h2>
           {pets && <PetPicker pets={pets} value={petId} onChange={setPetId} />}
 
           <div className="mt-5 grid gap-2">
-            <Button size="lg" onClick={() => start('ranked')} isLoading={busy === 'ranked'} disabled={!!busy || !pet?.verified}>
+            <Button size="lg" onClick={() => start('ranked')} isLoading={busy === 'ranked'} disabled={!!busy || !pet?.verified || isInjured(pet)}>
               <Swords className="h-5 w-5" /> Hodnocený souboj
             </Button>
-            {pet && !pet.verified && <p className="text-center text-xs text-muted-foreground">Demo a neověření PETi můžou jen do tréninku a přátelského souboje.</p>}
-            <Button size="lg" variant="outline" onClick={() => start('friendly')} isLoading={busy === 'friendly'} disabled={!!busy || !pet}>
+            {pet && !pet.verified && <p className="text-center text-xs text-muted-foreground">Ukázkoví a neověření tvorové můžou jen do tréninku a přátelského souboje.</p>}
+            <Button size="lg" variant="outline" onClick={() => start('friendly')} isLoading={busy === 'friendly'} disabled={!!busy || !pet || isInjured(pet)}>
               <Users className="h-5 w-5" /> Vyzvat kamaráda (odkaz)
             </Button>
-            <Button size="lg" variant="secondary" onClick={() => start('practice')} isLoading={busy === 'practice'} disabled={!!busy || !pet}>
-              <Bot className="h-5 w-5" /> Trénink proti strážci místa (bot)
+            <Button size="lg" variant="secondary" onClick={() => start('practice')} isLoading={busy === 'practice'} disabled={!!busy || !pet || isInjured(pet)}>
+              <Bot className="h-5 w-5" /> Trénink proti strážci místa
             </Button>
           </div>
           {error && <p role="alert" className="mt-3 text-center text-sm text-destructive">{error}</p>}
 
-          <div className="mt-6 rounded-xl bg-muted p-3 text-xs text-muted-foreground">
-            <b className="text-foreground">Pravidla:</b> Útok (síla 40, vždy zasáhne) · Silný úder (síla 70, 70 % zásah) · Obrana (další zásah poloviční; Chuť navíc léčí 10 %).
-            Typy: Pevnost › Výhled › Příroda › Pramen › Kultura › Pevnost (×1,5). Na tah máš 15 s, pak server zahraje Útok. Vše počítá server.
-          </div>
+          <details className="mt-8 rounded-2xl border border-border bg-card p-4 text-sm leading-relaxed">
+            <summary className="cursor-pointer font-semibold">Pravidla souboje</summary>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>Každý tah stojí <b className="text-foreground">výdrž</b>, po tahu se kousek obnoví. <b className="text-foreground">Útok</b> je zdarma a vždy zasáhne, <b className="text-foreground">Silný úder</b> je silnější, ale netrefí se vždy.</li>
+              <li><b className="text-foreground">Obrana</b> sníží další zásah na polovinu a obnoví víc výdrže. Tvor typu Chuť se navíc vyléčí o 10 %.</li>
+              <li><b className="text-foreground">Kouzla</b> jsou podle typu tvora a berou sílu z Magie. Každá evoluce odemkne silnější kouzlo.</li>
+              <li>Výhry i prohry dávají tvorovi XP. Kdo prohraje, je <b className="text-foreground">30 minut zraněný</b> a nemůže bojovat.</li>
+              <li>Pevnost přebíjí Výhled, ten Přírodu, ta Pramen, ten Kulturu a Kultura zase Pevnost. Výhodný typ dává 1,5× větší zásah.</li>
+              <li>Na tah máš 25 sekund, pak za tebe server zahraje Útok. Všechno počítá server.</li>
+            </ul>
+          </details>
         </>
       )}
     </AppShell>

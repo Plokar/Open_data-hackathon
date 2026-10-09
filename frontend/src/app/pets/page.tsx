@@ -3,7 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
+import { Guide } from '@/components/guide/Guide';
 import { PetCard } from '@/components/pet/PetCard';
+import { Evolution } from '@/components/pet/Evolution';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { errorMessage, gameApi, type Pet } from '@/lib/api';
 
 export default function PetsPage() {
@@ -11,6 +15,7 @@ export default function PetsPage() {
   const [editing, setEditing] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [evo, setEvo] = useState<{ pet: Pet; evolved: Pet | null; error: string } | null>(null);
 
   useEffect(() => {
     gameApi.myPets().then(setPets).catch((e) => { setPets([]); setError(errorMessage(e)); });
@@ -26,26 +31,39 @@ export default function PetsPage() {
     }
   };
 
+  const evolve = (pet: Pet) => {
+    setEvo({ pet, evolved: null, error: '' });
+    gameApi.evolvePet(pet.id)
+      .then((p) => { setEvo((e) => e && { ...e, evolved: p }); setPets((ps) => ps!.map((x) => (x.id === p.id ? p : x))); })
+      .catch((e) => setEvo((x) => x && { ...x, error: errorMessage(e) }));
+  };
+
   return (
     <AppShell>
-      <h1 className="text-2xl font-extrabold">Moji PETi</h1>
+      {evo && <Evolution {...evo} onClose={() => setEvo(null)} />}
+      <h1 className="text-3xl font-extrabold">Tvorové</h1>
+      {pets && pets.length > 0 && <p className="mt-1 text-muted-foreground">{pets.length} {pets.length === 1 ? 'tvor' : pets.length < 5 ? 'tvorové' : 'tvorů'} z tvých razítek</p>}
       {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
       {pets?.length === 0 && (
-        <p className="mt-2 text-sm text-muted-foreground">Každé razítko ti dá PETa. <Link href="/map" className="text-primary underline">Vyraz na mapu</Link>.</p>
+        <Guide who="vridla" className="mt-6"
+          action={<Link href="/map" className="inline-flex h-11 items-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground">Najít místo</Link>}>
+          Zatím tu nikdo nebydlí. Každé razítko mi dá vejce a z něj ti vylíhnu tvora podle místa, kde jsi byl.
+        </Guide>
       )}
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 space-y-4">
         {pets?.map((p) => (
-          <PetCard key={p.id} pet={p}>
-            <div className="mt-2 flex items-center justify-between text-xs">
-              <Link href={`/place/${p.place.id}`} className="text-primary underline">{p.place.name}</Link>
+          <PetCard key={p.id} pet={p} onEvolve={() => evolve(p)}>
+            <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3 text-sm">
               {editing === p.id ? (
-                <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); save(p.id); }}>
-                  <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} aria-label="Nové jméno"
-                    className="w-28 rounded border border-input bg-background px-2 py-1" autoFocus />
-                  <button className="rounded bg-primary px-2 py-1 text-primary-foreground">Uložit</button>
+                <form className="flex w-full gap-2" onSubmit={(e) => { e.preventDefault(); save(p.id); }}>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} aria-label="Nové jméno" className="h-11" autoFocus />
+                  <Button type="submit">Uložit</Button>
                 </form>
               ) : (
-                <button className="underline" onClick={() => { setEditing(p.id); setName(p.name); }}>Přejmenovat</button>
+                <>
+                  <Link href={`/place/${p.place.id}`} className="min-w-0 truncate text-primary underline">{p.place.name}</Link>
+                  <button className="h-11 shrink-0 cursor-pointer rounded-lg px-3 font-semibold hover:bg-accent" onClick={() => { setEditing(p.id); setName(p.name); }}>Přejmenovat</button>
+                </>
               )}
             </div>
           </PetCard>

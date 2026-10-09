@@ -33,8 +33,8 @@ function PlaceList({ rows }: { rows: PlaceStatRow[] }) {
     <ol className="space-y-1 text-sm">
       {rows.map((p) => (
         <li key={p.id} className="flex justify-between gap-2">
-          <Link href={`/place/${p.id}`} className="truncate underline-offset-2 hover:underline">{CATEGORY[p.category].icon} {p.name}</Link>
-          <span className="shrink-0 text-xs text-muted-foreground">{p.okres} · {p.stamps}×</span>
+          <Link href={`/place/${p.id}`} className="flex min-w-0 items-center gap-2 underline-offset-2 hover:underline">{(() => { const { Icon, color } = CATEGORY[p.category]; return <Icon className="h-4 w-4 shrink-0" style={{ color }} aria-hidden />; })()}<span className="truncate">{p.name}</span></Link>
+          <span className="shrink-0 text-xs text-muted-foreground">{p.okres}, {p.stamps}×</span>
         </li>
       ))}
     </ol>
@@ -59,7 +59,7 @@ export default function InsightsPage() {
 
   return (
     <AppShell>
-      <h1 className="text-2xl font-extrabold">Co hráči objevují</h1>
+      <h1 className="text-3xl font-extrabold">Co hráči objevují</h1>
       <p className="text-sm text-muted-foreground">Anonymní souhrn razítek pro Karlovarský kraj. Bez identity hráčů a bez demo razítek, aktualizace každou minutu.</p>
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
       {s && (
@@ -78,11 +78,11 @@ export default function InsightsPage() {
           <div className="mt-2"><Bars rows={s.by_okres.map((r) => ({ label: r.okres, stamps: r.stamps, places: r.places }))} /></div>
 
           <h2 className="mt-5 font-bold">Podle kategorií</h2>
-          <div className="mt-2"><Bars rows={s.by_category.map((r) => ({ label: `${CATEGORY[r.category].icon} ${CATEGORY[r.category].label}`, stamps: r.stamps, places: r.places, color: CATEGORY[r.category].color }))} /></div>
+          <div className="mt-2"><Bars rows={s.by_category.map((r) => ({ label: CATEGORY[r.category].label, stamps: r.stamps, places: r.places, color: CATEGORY[r.category].color }))} /></div>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div><h2 className="mb-2 font-bold">Nejnavštěvovanější</h2>{s.top.length ? <PlaceList rows={s.top} /> : <p className="text-sm text-muted-foreground">Zatím žádná razítka.</p>}</div>
-            <div><h2 className="mb-2 font-bold">Neobjevená místa – tip na výlet</h2><PlaceList rows={s.least} /></div>
+            <div><h2 className="mb-2 font-bold">Kam ještě nikdo nedošel</h2><PlaceList rows={s.least} /></div>
           </div>
         </>
       )}

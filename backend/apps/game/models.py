@@ -79,8 +79,12 @@ class Pet(models.Model):
     atk = models.IntegerField()
     defense = models.IntegerField()
     spd = models.IntegerField()
+    mag = models.IntegerField(default=20)        # magická síla (kouzla podle typu)
+    stamina = models.IntegerField(default=100)   # max. výdrž, útoky ji spotřebují
     level = models.IntegerField(default=1)
     xp = models.IntegerField(default=0)
+    stage = models.IntegerField(default=1)       # stupeň evoluce 1–3
+    injured_until = models.DateTimeField(null=True, blank=True)  # po prohře se tvor léčí
     seed = models.BigIntegerField()
     lore = models.TextField(blank=True)
     verified = models.BooleanField(default=False)
