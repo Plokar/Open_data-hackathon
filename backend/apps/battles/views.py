@@ -5,8 +5,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.game.models import Pet
-from apps.game.views import err
+from datetime import timedelta
+
+from django.utils import timezone
+
+from apps.game.models import Pet, Profile
+from apps.game.views import are_friends, err, profile_of
 
 from . import service
 from .consumers import group
@@ -32,7 +36,13 @@ def create_battle(request):
         if mode == 'practice':
             return _created(service.create_practice(request.user, pet))
         if mode == 'friendly':
-            return _created(service.create_waiting(request.user, pet, 'friendly'))
+            invited = None
+            if request.data.get('invite'):
+                friend = Profile.objects.filter(nickname=str(request.data['invite'])).select_related('user').first()
+                if not friend or not are_friends(request.user, friend.user):
+                    return err('NOT_FRIEND', 'Vyzvat napřímo můžeš jen své přátele.')
+                invited = friend.user
+            return _created(service.create_waiting(request.user, pet, 'friendly', invited))
         if mode == 'ranked':
             return _queued(service.queue(request.user, pet))
     except service.BattleError as e:
@@ -78,8 +88,23 @@ def battle_detail(request, pk):
     side = service.side_of(b, request.user.id)
     data = service.view(b, side or 'a')
     data['log'] = [service.turn_result(e, side or 'a') for e in b.log]
-    data['joinable'] = b.status == 'waiting' and b.mode == 'friendly' and side is None
+    data['joinable'] = (b.status == 'waiting' and b.mode == 'friendly' and side is None
+                        and b.invited_id in (None, request.user.id))
+    data['challenger'] = profile_of(b.player_a).nickname
+    data['invited'] = b.invited and profile_of(b.invited).nickname
     data['is_participant'] = side is not None
     if b.status == 'finished':
         data['result'] = service.battle_end(b, side or 'a')
     return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def challenges(request):
+    """Výzvy od přátel, které na mě čekají (posledních 30 min)."""
+    qs = (Battle.objects.filter(invited=request.user, status='waiting', created_at__gte=timezone.now() - timedelta(minutes=30))
+          .select_related('player_a', 'pet_a'))
+    return Response([{'battle_id': str(b.id), 'from': profile_of(b.player_a).nickname, 'created_at': b.created_at,
+                      'pet': b.pet_a and {'name': b.pet_a.name, 'type': b.pet_a.type, 'seed': b.pet_a.seed,
+                                          'stage': b.pet_a.stage, 'rarity': b.pet_a.rarity, 'level': b.pet_a.level}}
+                     for b in qs])

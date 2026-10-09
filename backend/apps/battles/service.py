@@ -66,9 +66,9 @@ def create_practice(user, pet):
     return b
 
 
-def create_waiting(user, pet, mode):
+def create_waiting(user, pet, mode, invited=None):
     _check_pet(user, pet, mode)
-    return Battle.objects.create(player_a=user, pet_a=pet, mode=mode, seed=random.getrandbits(31),
+    return Battle.objects.create(player_a=user, pet_a=pet, mode=mode, seed=random.getrandbits(31), invited=invited,
                                  state={'a': _fighter(pet)})
 
 
@@ -79,6 +79,8 @@ def join(battle_id, user, pet):
         raise BattleError('NOT_WAITING', 'Souboj už začal nebo skončil.')
     if b.player_a_id == user.id:
         raise BattleError('SELF', 'Nemůžeš bojovat sám se sebou.')
+    if b.invited_id and b.invited_id != user.id:
+        raise BattleError('NOT_INVITED', 'Tahle výzva patří jinému hráči.')
     _check_pet(user, pet, b.mode)
     b.player_b, b.pet_b = user, pet
     b.state['b'] = _fighter(pet)

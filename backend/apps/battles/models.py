@@ -12,6 +12,7 @@ class Battle(models.Model):
     player_b = models.ForeignKey(User, on_delete=models.CASCADE, related_name='battles_b', null=True, blank=True)  # null = bot
     pet_a = models.ForeignKey(Pet, on_delete=models.SET_NULL, null=True, related_name='+')
     pet_b = models.ForeignKey(Pet, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    invited = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='battle_invites')  # výzva příteli
     mode = models.CharField(max_length=10, choices=[(m, m) for m in ('ranked', 'friendly', 'practice')])
     status = models.CharField(max_length=10, default='waiting', db_index=True,
                               choices=[(s, s) for s in ('waiting', 'active', 'finished', 'abandoned')])

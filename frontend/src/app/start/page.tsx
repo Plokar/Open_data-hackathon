@@ -117,6 +117,12 @@ function randomToken(len = 20) {
   return Array.from(a, (b) => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 }
 
+/** Kam po založení Pasu: zpět na pozvánku (?redirect=/battle/…), jinak na mapu. Jen interní cesty. */
+function afterStart() {
+  const r = new URLSearchParams(window.location.search).get('redirect');
+  return r && r.startsWith('/') && !r.startsWith('//') ? r : '/map';
+}
+
 export default function StartPage() {
   const router = useRouter();
   const { register, user } = useAuth();
@@ -127,7 +133,7 @@ export default function StartPage() {
   const last = STEPS.length; // poslední krok je jméno
 
   useEffect(() => {
-    if (user && !busy) router.replace('/map');
+    if (user && !busy) router.replace(afterStart());
   }, [user, busy, router]);
 
   const create = async (e: React.FormEvent) => {
@@ -155,7 +161,7 @@ export default function StartPage() {
           if (!taken || attempt >= 4) throw err;
         }
       }
-      router.replace('/map');
+      router.replace(afterStart());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Pas se nepodařilo založit. Zkus to znovu.');
       setBusy(false);
@@ -230,7 +236,7 @@ export default function StartPage() {
         )}
       </nav>
       {step === 0 && (
-        <p className="mt-3 text-center text-sm text-muted-foreground">Už máš Pas? <Link href="/login" className="font-semibold text-primary underline">Přihlas se</Link></p>
+        <p className="mt-3 text-center text-sm text-muted-foreground">Už máš Pas? <Link href="/login" onClick={(e) => { e.preventDefault(); router.push(`/login${window.location.search}`); }} className="font-semibold text-primary underline">Přihlas se</Link></p>
       )}
     </div>
   );

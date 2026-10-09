@@ -21,7 +21,7 @@ from apps.battles import engine
 from apps.places.models import Place
 
 from . import ai_hooks, anticheat, badges, pets, quests
-from .models import Badge, CheckIn, Pet, Profile, Team, UserBadge
+from .models import Badge, CheckIn, Friendship, Pet, Profile, Team, UserBadge
 
 XP_BY_RARITY = {'common': 50, 'rare': 75, 'epic': 100, 'legendary': 150}
 
@@ -205,12 +205,87 @@ def badge_list(request):
     return Response([badge_json(b, request.user) for b in Badge.objects.order_by('id')])
 
 
+def top_pet(user):
+    p = user.pets.order_by('-level', '-stage', '-xp').first()
+    return p and {'name': p.name, 'type': p.type, 'seed': p.seed, 'stage': p.stage, 'rarity': p.rarity, 'level': p.level}
+
+
+def person_json(user):
+    prof = profile_of(user)
+    return {'nickname': prof.nickname, 'level': prof.level, 'rating': prof.rating, 'top_pet': top_pet(user)}
+
+
+def friendship_between(a, b):
+    return Friendship.objects.filter(Q(from_user=a, to_user=b) | Q(from_user=b, to_user=a)).first()
+
+
+def are_friends(a, b):
+    f = friendship_between(a, b)
+    return bool(f and f.accepted)
+
+
+def friendship_json(f, me):
+    if not f:
+        return {'id': None, 'state': 'none'}
+    state = 'friends' if f.accepted else 'outgoing' if f.from_user_id == me.id else 'incoming'
+    return {'id': f.id, 'state': state}
+
+
+def friends_payload(me):
+    out = {'friends': [], 'incoming': [], 'outgoing': []}
+    for f in Friendship.objects.filter(Q(from_user=me) | Q(to_user=me)).select_related('from_user', 'to_user').order_by('-created_at'):
+        other = f.to_user if f.from_user_id == me.id else f.from_user
+        out[friendship_json(f, me)['state']].append({'id': f.id, **person_json(other)})
+    return out
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def friends(request):
+    """GET → přátelé a žádosti, POST {nickname} → poslat žádost (když už protistrana žádala, rovnou přátelé)."""
+    me = request.user
+    if request.method == 'POST':
+        other = Profile.objects.filter(nickname__iexact=str(request.data.get('nickname', '')).strip()).first()
+        if not other:
+            return err('NOT_FOUND', 'Hráč s touto přezdívkou neexistuje.', 404)
+        if other.user_id == me.id:
+            return err('SELF', 'Sám sebe si do přátel nepřidáš.')
+        f = friendship_between(me, other.user)
+        if f is None:
+            Friendship.objects.get_or_create(from_user=me, to_user=other.user)
+        elif not f.accepted and f.to_user_id == me.id:
+            f.accepted = True
+            f.save(update_fields=['accepted'])
+    return Response(friends_payload(me))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def friend_accept(request, pk):
+    f = get_object_or_404(Friendship, pk=pk, to_user=request.user)
+    f.accepted = True
+    f.save(update_fields=['accepted'])
+    return Response(friends_payload(request.user))
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def friend_remove(request, pk):
+    """Odmítnout žádost, zrušit svou žádost nebo odebrat přítele."""
+    get_object_or_404(Friendship.objects.filter(Q(from_user=request.user) | Q(to_user=request.user)), pk=pk).delete()
+    return Response(friends_payload(request.user))
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_profile(request, nickname):
     prof = get_object_or_404(Profile.objects.select_related('user'), nickname=nickname)
     u = prof.user
+    me = request.user if request.user.is_authenticated and request.user.id != u.id else None
     return Response({
+        'friendship': me and friendship_json(friendship_between(me, u), me),
+        'friends_count': Friendship.objects.filter(Q(from_user=u) | Q(to_user=u), accepted=True).count(),
+        'rating': prof.rating, 'top_pet': top_pet(u),
         'nickname': prof.nickname, 'level': prof.level, 'xp': prof.xp, 'school': prof.school, 'wins': prof.wins,
         'team': prof.team.name if prof.team else None,
         'stamps': u.checkins.filter(is_demo=False).count(),

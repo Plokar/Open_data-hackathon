@@ -63,8 +63,15 @@ if [ "${DJANGO_DEBUG}" = "True" ] && [ -n "${DJANGO_SUPERUSER_USERNAME}" ]; then
 fi
 
 # ── Místa a odznaky z fixture (idempotentní, i v produkci) ──────────────────
+# Místa jen do prázdné DB: loaddata přepisuje řádky podle pk a smazal by fotky a popisy,
+# které do Place.extra doplnil fetch_place_photos.
 echo "🌱 Loading places + badges fixtures..."
-python manage.py loaddata places badges || echo "   (fixtures skipped)"
+if python manage.py shell -c "import sys; from apps.places.models import Place; sys.exit(0 if Place.objects.exists() else 1)" 2>/dev/null; then
+  echo "   (places already in DB, skipping)"
+else
+  python manage.py loaddata places || echo "   (places fixture skipped)"
+fi
+python manage.py loaddata badges || echo "   (badges fixture skipped)"
 
 
 # ── Start Server ──────────────────────────────────────────────────────────────

@@ -327,7 +327,20 @@ export interface LeaderRow {
   players?: number;
 }
 
+/** Malá ukázka tvora (nejlepší tvor hráče, výzva). */
+export interface PetPreview { name: string; type: PetType; seed: number; stage: number; rarity: Rarity; level: number }
+
+export interface Person { id: number; nickname: string; level: number; rating: number; top_pet: PetPreview | null }
+export interface FriendsData { friends: Person[]; incoming: Person[]; outgoing: Person[] }
+export type FriendState = 'none' | 'outgoing' | 'incoming' | 'friends';
+
+export interface Challenge { battle_id: string; from: string; created_at: string; pet: PetPreview | null }
+
 export interface PublicProfile {
+  friendship: { id: number | null; state: FriendState } | null; // null = můj profil nebo nepřihlášený
+  friends_count: number;
+  rating: number;
+  top_pet: PetPreview | null;
   nickname: string;
   level: number;
   xp: number;
@@ -352,7 +365,14 @@ export const gameApi = {
   badges: () => apiFetch<BadgeInfo[]>('/api/badges/'),
   leaderboard: (scope: 'global' | 'school' | 'team', metric: 'stamps' | 'wins') =>
     apiFetch<LeaderRow[]>(`/api/leaderboard/?scope=${scope}&metric=${metric}`),
-  user: (nickname: string) => apiFetch<PublicProfile>(`/api/users/${encodeURIComponent(nickname)}/`),
+  user: (nickname: string) => apiFetch<PublicProfile>(`/api/users/${encodeURIComponent(nickname)}/`, { cache: 'no-store' }),
+};
+
+export const friendsApi = {
+  list: () => apiFetch<FriendsData>('/api/friends/', { cache: 'no-store' }),
+  add: (nickname: string) => apiFetch<FriendsData>('/api/friends/', { method: 'POST', body: JSON.stringify({ nickname }) }),
+  accept: (id: number) => apiFetch<FriendsData>(`/api/friends/${id}/accept/`, { method: 'POST' }),
+  remove: (id: number) => apiFetch<FriendsData>(`/api/friends/${id}/`, { method: 'DELETE' }),
 };
 
 const ERROR_TEXT: Record<string, string> = {
@@ -449,22 +469,25 @@ export interface BattleEnd {
 export interface BattleDetail extends Omit<BattleState, 'type'> {
   log: TurnResult[];
   joinable: boolean;
+  challenger: string;
+  invited: string | null;
   is_participant: boolean;
   result?: BattleEnd;
 }
 
 export const battleApi = {
-  create: (mode: 'practice' | 'friendly' | 'ranked', pet_id: number) =>
+  create: (mode: 'practice' | 'friendly' | 'ranked', pet_id: number, invite?: string) =>
     apiFetch<{ battle_id: string; status: string; mode: string }>('/api/battles/', {
       method: 'POST',
-      body: JSON.stringify({ mode, pet_id }),
+      body: JSON.stringify({ mode, pet_id, invite }),
     }),
+  challenges: () => apiFetch<Challenge[]>('/api/battles/challenges/', { cache: 'no-store' }),
   join: (id: string, pet_id: number) =>
     apiFetch<{ battle_id: string; status: string }>(`/api/battles/${id}/join/`, {
       method: 'POST',
       body: JSON.stringify({ pet_id }),
     }),
-  get: (id: string) => apiFetch<BattleDetail>(`/api/battles/${id}/`),
+  get: (id: string) => apiFetch<BattleDetail>(`/api/battles/${id}/`, { cache: 'no-store' }),
 };
 
 Object.assign(ERROR_TEXT, {

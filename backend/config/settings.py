@@ -117,7 +117,9 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [f'{REDIS_URL}/2'],
+            # redis-py 8 má výchozí socket_timeout 5 s, stejně jako blokující čtení (BZPOPMIN) v channels_redis,
+            # takže každý WebSocket po ~5 s spadl na TimeoutError. Timeout musí být delší než 5 s.
+            'hosts': [{'address': f'{REDIS_URL}/2', 'socket_timeout': 30}],
             'capacity': 1500,
             'expiry': 10,
         },

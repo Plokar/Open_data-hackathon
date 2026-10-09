@@ -94,6 +94,17 @@ class Pet(models.Model):
         ordering = ['-created_at']
 
 
+class Friendship(models.Model):
+    """Žádost o přátelství; po přijetí (accepted) platí oběma směry."""
+    from_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_requests_sent')
+    to_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_requests_received')
+    accepted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['from_user', 'to_user'], name='uniq_friendship')]
+
+
 class Badge(models.Model):
     code = models.CharField(max_length=40, unique=True)
     name = models.CharField(max_length=80)

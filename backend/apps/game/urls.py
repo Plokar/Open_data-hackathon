@@ -16,4 +16,7 @@ urlpatterns = [
     path('teams/join/', views.team_join, name='team-join'),
     path('teams/leave/', views.team_leave, name='team-leave'),
     path('users/<str:nickname>/', views.public_profile, name='public-profile'),
+    path('friends/', views.friends, name='friends'),
+    path('friends/<int:pk>/accept/', views.friend_accept, name='friend-accept'),
+    path('friends/<int:pk>/', views.friend_remove, name='friend-remove'),
 ]

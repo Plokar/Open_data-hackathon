@@ -87,3 +87,29 @@ def test_loser_gets_injured(place):
         service.create_practice(loser.owner, loser)
     assert e.value.code == 'PET_INJURED'
     assert not service.submit_move(battle.id, a.id, 2, 'attack')     # po konci už nic
+
+
+def test_channel_layer_outlives_blocking_read():
+    # redis-py 8 má výchozí socket_timeout 5 s = BZPOPMIN timeout channels_redis → WS padaly po 5 s
+    from channels_redis.core import RedisChannelLayer
+    from config import settings as base
+    assert base.CHANNEL_LAYERS['default']['CONFIG']['hosts'][0]['socket_timeout'] > RedisChannelLayer.brpop_timeout
+
+
+def test_friends_and_direct_challenge(place):
+    from rest_framework.test import APIClient
+    a, pa = _player('eva', place)
+    b, pb = _player('filip', place)
+    c, pc = _player('gita', place)
+    ca, cb = APIClient(), APIClient()
+    ca.force_authenticate(a)
+    cb.force_authenticate(b)
+    assert ca.post('/api/battles/', {'mode': 'friendly', 'pet_id': pa.id, 'invite': 'filip'}).data['error_code'] == 'NOT_FRIEND'
+    req = ca.post('/api/friends/', {'nickname': 'FILIP'}).data['outgoing'][0]
+    assert cb.get('/api/users/eva/').data['friendship'] == {'id': req['id'], 'state': 'incoming'}
+    assert cb.post(f'/api/friends/{req["id"]}/accept/').data['friends'][0]['nickname'] == 'eva'
+    bid = ca.post('/api/battles/', {'mode': 'friendly', 'pet_id': pa.id, 'invite': 'filip'}).data['battle_id']
+    assert cb.get('/api/battles/challenges/').data[0]['from'] == 'eva'
+    with pytest.raises(service.BattleError):
+        service.join(bid, c, pc)                                      # cizí výzvu nepřijme
+    assert cb.post(f'/api/battles/{bid}/join/', {'pet_id': pb.id}).data['status'] == 'active'

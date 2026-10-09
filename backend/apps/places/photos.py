@@ -14,6 +14,7 @@ import json
 import re
 import time
 import unicodedata
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -68,8 +69,16 @@ def _get(url: str, params: dict, tries: int = 4) -> dict:
     q = urllib.parse.urlencode({**params, 'format': 'json', 'formatversion': 2})
     req = urllib.request.Request(f'{url}?{q}', headers={'User-Agent': UA})
     for attempt in range(tries):
-        with urllib.request.urlopen(req, timeout=20) as r:
-            d = json.load(r)
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                d = json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code != 429 or attempt == tries - 1:
+                raise
+            # Wikimedia při přetížení vrací 429: počkat, kolik řekne (Retry-After), jinak exponenciálně
+            time.sleep(float(e.headers.get('Retry-After') or 5 * 2 ** attempt))
+            d = {}
+            continue
         if 'query' in d:
             return d
         time.sleep(2 ** attempt)  # API vrací chybu (např. ratelimited) místo dat: chvíli počkat

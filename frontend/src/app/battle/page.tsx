@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Swords, Users } from 'lucide-react';
+import { Bot, Send, Swords, Users } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PetPicker, isInjured } from '@/components/battle/PetPicker';
+import { Challenges } from '@/components/battle/Challenges';
 import { Button } from '@/components/ui/button';
 import { Guide } from '@/components/guide/Guide';
 import { battleApi, errorMessage, gameApi, type Pet } from '@/lib/api';
@@ -16,6 +17,12 @@ export default function BattleLobby() {
   const [petId, setPetId] = useState<number | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [invite, setInvite] = useState(''); // ?invite=přezdívka z profilu přítele
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- query až po hydrataci (bez Suspense kvůli useSearchParams)
+    setInvite(new URLSearchParams(window.location.search).get('invite') ?? '');
+  }, []);
 
   useEffect(() => {
     gameApi.myPets().then((ps) => {
@@ -32,7 +39,7 @@ export default function BattleLobby() {
     setBusy(mode);
     setError('');
     try {
-      const b = await battleApi.create(mode, petId);
+      const b = await battleApi.create(mode, petId, mode === 'friendly' && invite ? invite : undefined);
       router.push(`/battle/${b.battle_id}`);
     } catch (e) {
       setError(errorMessage(e));
@@ -42,7 +49,8 @@ export default function BattleLobby() {
 
   return (
     <AppShell>
-      <h1 className="text-3xl font-extrabold">Souboj</h1>
+      <h1 className="text-3xl font-extrabold">{invite ? `Výzva pro ${invite}` : 'Souboj'}</h1>
+      {!invite && <Challenges className="mt-4" />}
       {pets?.length === 0 ? (
         <Guide who="vridla" className="mt-6"
           action={<Link href="/map" className="inline-flex h-11 items-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground">Najít místo</Link>}>
@@ -53,18 +61,28 @@ export default function BattleLobby() {
           <h2 className="mt-5 font-semibold">Koho pošleš?</h2>
           {pets && <PetPicker pets={pets} value={petId} onChange={setPetId} />}
 
+          {invite ? (
+            <div className="mt-5 grid gap-2">
+              <Button size="lg" onClick={() => start('friendly')} isLoading={busy === 'friendly'} disabled={!!busy || !pet || isInjured(pet)}>
+                <Send className="h-5 w-5" /> Poslat výzvu hráči {invite}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">Výzvu uvidí v Souboji. Když jste spolu, ukážeš mu i QR kód.</p>
+              <Link href="/battle" className="text-center text-sm font-semibold text-primary underline">Jiný souboj</Link>
+            </div>
+          ) : (
           <div className="mt-5 grid gap-2">
             <Button size="lg" onClick={() => start('ranked')} isLoading={busy === 'ranked'} disabled={!!busy || !pet?.verified || isInjured(pet)}>
               <Swords className="h-5 w-5" /> Hodnocený souboj
             </Button>
             {pet && !pet.verified && <p className="text-center text-xs text-muted-foreground">Ukázkoví a neověření tvorové můžou jen do tréninku a přátelského souboje.</p>}
             <Button size="lg" variant="outline" onClick={() => start('friendly')} isLoading={busy === 'friendly'} disabled={!!busy || !pet || isInjured(pet)}>
-              <Users className="h-5 w-5" /> Vyzvat kamaráda (odkaz)
+              <Users className="h-5 w-5" /> Vyzvat kamaráda (odkaz a QR)
             </Button>
             <Button size="lg" variant="secondary" onClick={() => start('practice')} isLoading={busy === 'practice'} disabled={!!busy || !pet || isInjured(pet)}>
               <Bot className="h-5 w-5" /> Trénink proti strážci místa
             </Button>
           </div>
+          )}
           {error && <p role="alert" className="mt-3 text-center text-sm text-destructive">{error}</p>}
 
           <details className="mt-8 rounded-2xl border border-border bg-card p-4 text-sm leading-relaxed">

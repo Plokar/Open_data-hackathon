@@ -7,6 +7,8 @@ import { Bandage, Handshake, Hammer, Moon, Shield, Sparkles, Sword, Trophy, Zap 
 import { AppShell } from '@/components/layout/AppShell';
 import { Arena } from '@/components/battle/Arena';
 import { PetPicker } from '@/components/battle/PetPicker';
+import { PetArt } from '@/components/pet/PetCard';
+import { ShareQr } from '@/components/ui/share-qr';
 import { Button } from '@/components/ui/button';
 import { useWebSocket, type WsMessage } from '@/hooks/useWebSocket';
 import {
@@ -64,7 +66,7 @@ export default function BattlePage() {
   const [myPets, setMyPets] = useState<Pet[]>([]);
   const [joinPet, setJoinPet] = useState<number | null>(null);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [url, setUrl] = useState('');
   const names = useRef({ you: 'Ty', opp: 'Soupeř' });
 
   const load = useCallback(() => {
@@ -128,14 +130,8 @@ export default function BattlePage() {
     }
   };
 
-  const share = async () => {
-    const url = window.location.href;
-    if (navigator.share) await navigator.share({ title: 'Výzva na souboj, Západ GO', url }).catch(() => {});
-    else {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-    }
-  };
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- adresa až po hydrataci
+  useEffect(() => setUrl(window.location.href.split('?')[0]), []);
 
   if (!detail) return <AppShell><p className="text-sm text-muted-foreground">{error || 'Načítám souboj…'}</p></AppShell>;
 
@@ -143,13 +139,23 @@ export default function BattlePage() {
     return (
       <AppShell>
         <h1 className="text-2xl font-extrabold">Výzva na souboj</h1>
+        {detail.you && (
+          <div className="mt-3 flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+            <PetArt type={detail.you.type} seed={detail.you.seed} stage={detail.you.stage} rarity={detail.you.rarity} size={72} />
+            <div className="min-w-0">
+              <div className="text-sm text-muted-foreground"><Link href={`/u/${encodeURIComponent(detail.challenger)}`} className="font-semibold text-foreground underline">{detail.challenger}</Link> tě vyzývá</div>
+              <div className="truncate text-lg font-bold">{detail.you.name}</div>
+              <div className="text-xs text-muted-foreground">{PET_TYPE[detail.you.type].label}, lvl {detail.you.level}</div>
+            </div>
+          </div>
+        )}
         {detail.joinable ? (
           <>
-            <p className="mt-1 text-sm text-muted-foreground">{detail.you?.name} tě vyzývá. Vyber tvora:</p>
+            <p className="mt-4 font-semibold">Koho pošleš proti?</p>
             {myPets.length ? <PetPicker pets={myPets} value={joinPet} onChange={setJoinPet} /> : <p className="mt-2 text-sm">Nejdřív potřebuješ tvora z razítka.</p>}
             <Button size="lg" className="mt-3 w-full" onClick={join} disabled={!joinPet}>Přijmout souboj</Button>
           </>
-        ) : <p className="mt-2 text-sm text-muted-foreground">Tenhle souboj už není volný.</p>}
+        ) : <p className="mt-3 text-sm text-muted-foreground">{detail.invited && detail.status === 'waiting' ? 'Tahle výzva patří jinému hráči.' : 'Tenhle souboj už není volný.'}</p>}
         {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
       </AppShell>
     );
@@ -167,9 +173,21 @@ export default function BattlePage() {
 
       {s?.status === 'waiting' && (
         <div className="mt-6 text-center">
-          <div className="text-lg font-bold">{detail.mode === 'friendly' ? 'Pošli odkaz kamarádovi' : 'Hledám soupeře…'}</div>
-          <div className="mx-auto mt-3 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" aria-hidden />
-          {detail.mode === 'friendly' && <Button className="mt-4" onClick={share}>{copied ? 'Odkaz zkopírován ✓' : 'Sdílet odkaz'}</Button>}
+          <div className="text-lg font-bold">
+            {detail.mode !== 'friendly' ? 'Hledám soupeře…' : detail.invited ? `Výzva odeslána hráči ${detail.invited}` : 'Vyzvi kamaráda'}
+          </div>
+          {detail.mode === 'friendly' && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {detail.invited ? 'Uvidí ji v Souboji. Jakmile ji přijme, začnete.' : 'Souboj začne, jakmile se kamarád připojí.'}
+            </p>
+          )}
+          {detail.mode === 'friendly' && url && (
+            <ShareQr className="mt-5" url={url} title="Výzva na souboj, Západ GO"
+              hint={detail.invited ? 'Jste spolu? Ať naskenuje QR kód a hned se připojí.' : 'Jste spolu? Ať kamarád naskenuje QR kód telefonem. Nebo mu pošli odkaz.'} />
+          )}
+          <div className="mx-auto mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden /> Čekám na soupeře…
+          </div>
           {detail.mode === 'ranked' && (
             <p className="mt-4 text-sm text-muted-foreground">Nikdo zrovna nehraje? <Link href="/battle" className="text-primary underline">Zkus trénink proti strážci</Link>.</p>
           )}

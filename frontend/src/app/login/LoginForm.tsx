@@ -21,7 +21,8 @@ export default function LoginForm() {
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
-  const redirectUrl = searchParams.get('redirect') || '/map';
+  const r = searchParams.get('redirect');
+  const redirectUrl = r && r.startsWith('/') && !r.startsWith('//') ? r : '/map'; // jen interní cesty
 
   React.useEffect(() => {
     if (user) router.push(redirectUrl);
