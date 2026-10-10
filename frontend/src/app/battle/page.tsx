@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Send, Swords, Users } from 'lucide-react';
+import { Bot, Send, Swords, Users, UsersRound } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PetPicker, isInjured } from '@/components/battle/PetPicker';
 import { Challenges } from '@/components/battle/Challenges';
@@ -34,7 +34,7 @@ export default function BattleLobby() {
 
   const pet = pets?.find((p) => p.id === petId);
 
-  const start = async (mode: 'practice' | 'friendly' | 'ranked') => {
+  const start = async (mode: 'practice' | 'friendly' | 'ranked' | 'ffa' | 'team') => {
     if (!petId) return;
     setBusy(mode);
     setError('');
@@ -81,6 +81,17 @@ export default function BattleLobby() {
             <Button size="lg" variant="secondary" onClick={() => start('practice')} isLoading={busy === 'practice'} disabled={!!busy || !pet || isInjured(pet)}>
               <Bot className="h-5 w-5" /> Trénink proti strážci místa
             </Button>
+            <h2 className="mt-4 font-semibold">Skupinový souboj</h2>
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="lg" variant="outline" className="h-auto flex-col gap-0.5 py-3" onClick={() => start('ffa')} isLoading={busy === 'ffa'} disabled={!!busy || !pet || isInjured(pet)}>
+                <span className="flex items-center gap-1.5"><UsersRound className="h-5 w-5" /> Všichni proti všem</span>
+                <span className="text-xs font-normal text-muted-foreground">3 hráči, vyhrává jeden</span>
+              </Button>
+              <Button size="lg" variant="outline" className="h-auto flex-col gap-0.5 py-3" onClick={() => start('team')} isLoading={busy === 'team'} disabled={!!busy || !pet || isInjured(pet)}>
+                <span className="flex items-center gap-1.5"><Users className="h-5 w-5" /> 2 na 2</span>
+                <span className="text-xs font-normal text-muted-foreground">dva týmy, vyhrává tým</span>
+              </Button>
+            </div>
           </div>
           )}
           {error && <p role="alert" className="mt-3 text-center text-sm text-destructive">{error}</p>}
@@ -93,6 +104,8 @@ export default function BattleLobby() {
               <li><b className="text-foreground">Kouzla</b> jsou podle typu tvora a berou sílu z Magie. Každá evoluce odemkne silnější kouzlo.</li>
               <li>Výhry i prohry dávají tvorovi XP. Kdo prohraje, je <b className="text-foreground">30 minut zraněný</b> a nemůže bojovat.</li>
               <li>Pevnost přebíjí Výhled, ten Přírodu, ta Pramen, ten Kulturu a Kultura zase Pevnost. Výhodný typ dává 1,5× větší zásah.</li>
+              <li>Ve skupinovém souboji si u útoku vybereš, na koho míříš. Padlý tvor už nebojuje, ve 2v2 za něj pokračuje parťák.</li>
+              <li>Bosové se objevují na mapě, každý týden jinde. Vyzvat je můžeš jen na místě (do 300 m), sám nebo až se dvěma kamarády, a s každým jednou za týden. Za výhru je legendární tvor.</li>
               <li>Na tah máš 25 sekund, pak za tebe server zahraje Útok. Všechno počítá server.</li>
             </ul>
           </details>

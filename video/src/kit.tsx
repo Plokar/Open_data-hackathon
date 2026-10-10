@@ -116,14 +116,14 @@ export function Film() {
 }
 
 /** Rámeček telefonu kolem záznamu obrazovky (412 × 892 CSS px). `w` je šířka displeje ve videu. */
-export function Phone({ w, children, style }: { w: number; children: React.ReactNode; style?: React.CSSProperties }) {
+export function Phone({ w, children, style, bare }: { w: number; children: React.ReactNode; style?: React.CSSProperties; bare?: boolean }) {
   const bezel = w * 0.035;
   return (
     <div style={{
       position: 'absolute', width: w + 2 * bezel, padding: bezel, borderRadius: w * 0.14, background: '#0a0d0b',
       boxShadow: '0 0 0 2px #2a302c, 0 50px 90px -30px rgb(0 0 0 / 0.8)', ...style,
     }}>
-      <div style={{ position: 'relative', width: w, height: (w * 892) / 412, borderRadius: w * 0.11, overflow: 'hidden', background: C.paper }}>
+      <div style={{ position: 'relative', width: w, height: (w * 892) / 412, borderRadius: w * 0.11, overflow: 'hidden', background: bare ? 'transparent' : C.paper }}>
         {children}
         <div style={{ position: 'absolute', top: w * 0.022, left: '50%', width: w * 0.27, height: w * 0.07, marginLeft: -w * 0.135, borderRadius: 99, background: '#000' }} />
       </div>
@@ -144,13 +144,29 @@ export function Tap({ at, x, y }: { at: number; x: number; y: number }) {
   );
 }
 
-/** Scéna, která čeká na živý záznam aplikace (natáčí se po feature freeze). */
-export function Pending({ label, children }: { label: string; children?: React.ReactNode }) {
+/** Záznam aplikace (scripts/rec.mjs): soubor a časy událostí v sekundách videa. */
+export type Rec = { file: string; events: { name: string; t: number; x?: number; y?: number }[] };
+export const evt = (rec: Rec, name: string) => rec.events.find((e) => e.name === name)!;
+
+/** Telefon vpravo, text vlevo: společné rozložení scén s aplikací, ať na sebe přechody navazují. */
+export const PHONE = { w: 400, left: 1190, top: 68 };
+
+/** Velký text vlevo vedle telefonu. */
+export function SideText({ from, to, children, sub, top = 380 }: {
+  from: number; to: number; children: React.ReactNode; sub?: React.ReactNode; top?: number;
+}) {
+  const f = useCurrentFrame();
+  const inn = interpolate(f, [from, from + 14], [0, 1], { ...clamp, easing: easeOut });
+  const out = interpolate(f, [to - 8, to], [1, 0], clamp);
+  const o = Math.min(inn, out);
+  if (o <= 0) return null;
   return (
-    <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 40%, ${C.spruce}, ${C.night} 75%)` }}>
-      <div style={{ position: 'absolute', inset: 60, border: '3px dashed rgb(246 248 241 / 0.16)', borderRadius: 28 }} />
-      <div style={{ position: 'absolute', left: 100, top: 92, fontFamily: SANS, fontSize: 30, color: 'rgb(246 248 241 / 0.4)' }}>{label}</div>
-      {children}
-    </AbsoluteFill>
+    <div style={{
+      position: 'absolute', left: 170, width: 880, top, color: C.cream, fontFamily: SANS, opacity: o,
+      transform: `translateY(${(1 - inn) * 26}px)`, filter: `blur(${(1 - inn) * 8}px)`,
+    }}>
+      <div style={{ fontSize: 82, fontWeight: 800, lineHeight: 1.02, letterSpacing: '-0.035em', textWrap: 'balance' }}>{children}</div>
+      {sub && <div style={{ marginTop: 22, fontSize: 32, lineHeight: 1.3, opacity: 0.72 }}>{sub}</div>}
+    </div>
   );
 }

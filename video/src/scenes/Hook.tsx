@@ -1,45 +1,50 @@
-import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Easing, interpolate, OffthreadVideo, Sequence, staticFile, useCurrentFrame } from 'remotion';
 import { Caption, clamp } from '../kit';
 
-// ponytail: fotky z Wikimedia Commons (960 px) jsou zástupné; až bude letecký stock záběr, vyměnit za <OffthreadVideo>
-const GRADE = 'saturate(0.8) contrast(1.08) brightness(0.84) sepia(0.14)';
-const photo: React.CSSProperties = { position: 'absolute', width: '100%', height: '100%', objectFit: 'cover', filter: GRADE };
+/*
+ * Záběry: Joe999 / Videezy.com (dron nad krajinou, zřícenina v lese, hrad Loket), Videezy Standard License s uvedením zdroje.
+ * Každý záběr se prolne do dalšího (XF snímků), kamera pomalu najíždí.
+ */
+const XF = 8;
+const SHOTS = [
+  { src: 'stock/landscape.mp4', from: 0, to: 84, trim: 0.2, zoom: [1, 1.07], origin: '50% 62%' },
+  { src: 'stock/ruin.mp4', from: 84 - XF, to: 118, trim: 0.6, zoom: [1.04, 1.12], origin: '55% 45%' },
+  { src: 'stock/loket.mp4', from: 118 - XF, to: 183, trim: 0, zoom: [1.02, 1.4], origin: '58% 22%' }, // věž Lokte
+];
+const GRADE = 'saturate(0.88) contrast(1.07) brightness(0.9)';
 
-/** Scéna 1: tma, jedna GPS tečka, krajina Krušných hor, push-in na věž Lokte. */
-export function Hook() {
+/** Scéna 1: hudba se rozjíždí z ticha, dron nad krajem, zřícenina, push-in na věž Lokte, mlha. */
+export function Hook({ dur }: { dur: number }) {
   const f = useCurrentFrame();
-  const dot = interpolate(f, [30, 40, 100, 128], [0, 1, 1, 0], clamp);
-  const ring = ((f + 15) % 45) / 45;
-  const land = interpolate(f, [90, 135, 205, 222], [0, 1, 1, 0], clamp);
-  const castle = interpolate(f, [205, 222], [0, 1], clamp);
-  const mist = interpolate(f, [282, 300], [0, 1], { ...clamp, easing: Easing.in(Easing.quad) });
-
+  const fromBlack = interpolate(f, [0, 22], [1, 0], clamp);
+  const mist = interpolate(f, [dur - 18, dur], [0, 1], { ...clamp, easing: Easing.in(Easing.quad) });
   return (
     <AbsoluteFill style={{ background: '#000', overflow: 'hidden' }}>
-      <Img src={staticFile('krusne-hory.jpg')} style={{
-        ...photo, opacity: land,
-        transform: `scale(${interpolate(f, [90, 222], [1.06, 1.2])}) translateX(${interpolate(f, [90, 222], [18, -26])}px)`,
-      }} />
-      {/* věž je na fotce zhruba v 62 % šířky a 30 % výšky */}
-      <Img src={staticFile('loket.jpg')} style={{
-        ...photo, opacity: castle, transformOrigin: '62% 30%',
-        transform: `scale(${interpolate(f, [205, 300], [1.02, 1.55], { ...clamp, easing: Easing.in(Easing.quad) })})`,
-      }} />
-      <AbsoluteFill style={{ background: 'linear-gradient(rgb(0 0 0 / 0.25), transparent 35%, transparent 55%, rgb(0 0 0 / 0.6))' }} />
+      {SHOTS.map((s, i) => (
+        <Sequence key={s.src} from={s.from} durationInFrames={s.to - s.from}>
+          <Shot {...s} len={s.to - s.from} fadeIn={i ? XF : 0} />
+        </Sequence>
+      ))}
+      <AbsoluteFill style={{ background: 'linear-gradient(rgb(0 0 0 / 0.3), transparent 30%, transparent 55%, rgb(0 0 0 / 0.6))' }} />
+      <AbsoluteFill style={{ background: '#000', opacity: fromBlack }} />
 
-      {/* jediná GPS tečka ve tmě */}
-      <div style={{ position: 'absolute', left: 960, top: 540, opacity: dot }}>
-        <div style={{
-          position: 'absolute', width: 180, height: 180, left: -90, top: -90, borderRadius: '50%',
-          border: '2px solid rgb(255 236 190 / 0.8)', transform: `scale(${0.1 + ring * 0.9})`, opacity: 1 - ring,
-        }} />
-        <div style={{ position: 'absolute', width: 18, height: 18, left: -9, top: -9, borderRadius: '50%', background: '#fff3d6', boxShadow: '0 0 24px 8px rgb(255 214 130 / 0.7)' }} />
-      </div>
-
-      <Caption from={110} to={206} y={470} size={120}>Karlovarský kraj.</Caption>
-      <Caption from={226} to={298} size={76}>Kolik z jeho příběhů jsi opravdu viděl?</Caption>
-      {/* mlha, ze které se v další scéně vynoří ilustrovaná krajina */}
+      <Caption from={14} to={80} y={455} size={124}>Karlovarský kraj.</Caption>
+      <Caption from={94} to={dur - 4} size={76}>Kolik z jeho příběhů jsi opravdu viděl?</Caption>
+      {/* mlha, ze které se v další scéně vynoří ilustrovaná krajina (hudební úder) */}
       <AbsoluteFill style={{ background: '#eef1e8', opacity: mist }} />
+    </AbsoluteFill>
+  );
+}
+
+function Shot({ src, trim, zoom, origin, len, fadeIn }: { src: string; trim: number; zoom: number[]; origin: string; len: number; fadeIn: number }) {
+  const f = useCurrentFrame();
+  return (
+    <AbsoluteFill style={{ opacity: fadeIn ? interpolate(f, [0, fadeIn], [0, 1], clamp) : 1 }}>
+      <OffthreadVideo src={staticFile(src)} muted trimBefore={Math.round(trim * 30)}
+        style={{
+          width: '100%', height: '100%', objectFit: 'cover', filter: GRADE, transformOrigin: origin,
+          transform: `scale(${interpolate(f, [0, len], zoom, { ...clamp, easing: Easing.inOut(Easing.quad) })})`,
+        }} />
     </AbsoluteFill>
   );
 }

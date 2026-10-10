@@ -228,19 +228,23 @@ Pokud se během zbývajících hodin objeví něco nového, vejde se sem (každ�
 
 ## 9. Stav výroby (Remotion projekt `video/`)
 
-Spuštění: `cd video && npm install`, pak `npm run studio` (náhled v prohlížeči) nebo `npm run render` (→ `out/zapad-go.mp4`). Komponenty `Landscape`, `MascotArt`, generátor tvorů a `CATEGORY` se berou přímo z `frontend/src`, takže změna ve vzhledu aplikace se ve videu projeví sama.
+**Hotová verze: 1:20, s hudbou** (`public/Sovereign_of_the_High_Peak.mp3`, stříhaná na hranicích 4s frází: 0:02–1:08, 1:28–1:36, 1:40–konec). Drop skladby padne na začátek souboje, závěrečný vrchol na finále.
 
-| Scéna | Soubor | Stav |
-|---|---|---|
-| 1 Hook | `scenes/Hook.tsx` | hotovo; fotky Krušných hor a Lokte z Commons jsou zástupné za letecký stock záběr |
-| 2 Název a průvodci | `scenes/Title.tsx` | hotovo; hit v 0:20 dopadá na ZÁPAD GO, proto scéna trvá do 0:21 |
-| 3 Mapa | `scenes/Pending.tsx` | titulky hotové (617 míst), čeká na záznam `/map` |
-| 4 Razítko | `scenes/Pending.tsx` | dopad razítka do Pasu (4.3) hotový, čeká na terénní záběr a záznam focení |
-| 5 Zrození tvora | `scenes/PetBirth.tsx` | hotovo (Vyhlídal, seed 419916) |
-| 6 Typová věž | `scenes/TypeWheel.tsx` | hotovo, pořadí podle `BEATS` |
-| 7 Souboj | `scenes/Battle.tsx` | hotovo ze skutečného souboje (Bára s Vyhlídalem proti Kubovi s Baštounem, hodnocený matchmaking, KO Ohnivou střelou); přenahrání `node scripts/record-battle.mjs phones`, pak `a` a `b` |
-| 8 Postup | `scenes/Pending.tsx` | titulky hotové, čeká na záznam |
-| 9 Dopad | `scenes/Pending.tsx` | titulky hotové, čeká na záznam `/insights` |
-| 10 Finále | `scenes/Finale.tsx` | hotovo; 617 reálných míst z DB, QR na zapadgo.vercel.app, tým KOREX |
+Spuštění: `cd video && npm install`, `npm run studio` (náhled), `npm run render` (→ `out/zapad-go.mp4`). Časová osa a hudba: `src/Video.tsx`.
 
-Časová osa a hudba: `video/src/Video.tsx` (`SCENES`, `MUSIC`). Skladbu dát do `video/public/` a její název do `MUSIC`.
+| Čas | Scéna | Obsah | Zdroj |
+|---|---|---|---|
+| 0:00 | Úvod | dron nad krajem, zřícenina, hrad Loket, mlha | Videezy (Joe999), s uvedením zdroje |
+| 0:06 | Titulek | průvodci na doby, ZÁPAD GO na úder | komponenty aplikace |
+| 0:12 | Mapa | piny přibývají po kategoriích, přiblížení na Dianu, zastávka autobusu | záznam aplikace (`record-app.mjs map`) |
+| 0:18 | Razítko | turista zezadu s GPS cílem, fotka a ověření v aplikaci, razítko v Pasu | Mixkit + záznam aplikace (`checkin`) |
+| 0:25 | Zrození tvora | razítko praskne, místo + foto + hráč, rarita, evoluce | Remotion |
+| 0:34 | Typová věž | šipky na osminy, zoom na Pevnost → Výhled | Remotion |
+| 0:38 | Souboj (drop) | skutečný souboj Bára × Kuba, KO ve zpomalení | `record-battle.mjs` |
+| 0:50 | Postup | Pas, úkoly, odznaky, žebříček škol a týmů | záznam aplikace (`pass`, `leaderboard`) |
+| 0:58 | Dopad | co hráči objevují, místa se rozsvítí jako souhvězdí | záznam aplikace (`insights`) |
+| 1:06 | Finále (vrchol) | 617 míst kraje, průvodci, logo, QR na zapadgo-app.nervelabs.co.uk | data z DB |
+
+Přechody na sebe navazují (mlha, logo → telefon, průlet do displeje, najezd do razítka, záblesk, blesk na dropu, konfety, swipe v telefonu, souhvězdí).
+
+Přenahrání záznamů aplikace (lokální docker): `node scripts/record-app.mjs [map] [checkin] [pass] [leaderboard] [insights]` naplní demo svět (`scripts/world_setup.py`: hráči `demo_*`) a nahraje vybrané obrazovky. Úklid demo dat: `User.objects.filter(username__startswith='demo_').delete()`.

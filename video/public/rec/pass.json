@@ -1,0 +1,18 @@
+{
+ "file": "rec/pass.mp4",
+ "fps": 77.2,
+ "events": [
+  {
+   "name": "stamps",
+   "t": 0.996
+  },
+  {
+   "name": "quests",
+   "t": 2.805
+  },
+  {
+   "name": "badges",
+   "t": 5.51
+  }
+ ]
+}

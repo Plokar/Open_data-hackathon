@@ -46,8 +46,10 @@ def pet_json(p):
         'xp_next': pets.xp_for_level(p.level + 1) if p.level < pets.MAX_LEVEL else None,
         'stage': p.stage, 'stage_label': pets.STAGES[p.stage][0], 'can_evolve': pets.can_evolve(p),
         'evolve_level': pets.EVOLVE_LEVEL.get(p.stage + 1), 'injured_until': injured,
-        'moves': [{'id': m, **engine.MOVES[m]} for m in engine.moves_for(p.type, p.stage)],
-        'seed': p.seed, 'lore': p.lore, 'verified': p.verified, 'is_demo': p.checkin.is_demo,
+        'moves': [{'id': m, **engine.MOVES[m], 'bred': m in engine.BRED, 'type': p.type2 if m in engine.MAGIC.get(p.type2, ()) else p.type}
+                  for m in engine.moves_for(p.type, p.stage, p.type2, p.bonus_move)],
+        'type2': p.type2, 'bonus_move': p.bonus_move, 'favorite': p.favorite,
+        'seed': p.seed, 'lore': p.lore, 'verified': p.verified, 'is_demo': bool(p.checkin and p.checkin.is_demo),
         'place': {'id': p.place_id, 'name': p.place.name, 'category': p.place.category},
         'created_at': p.created_at,
     }
@@ -186,12 +188,81 @@ def pet_detail(request, pk):
     if request.method == 'PATCH':
         if p.owner_id != request.user.id:
             return err('FORBIDDEN', 'Tohle není tvůj PET.', 403)
-        name = str(request.data.get('name', '')).strip()
-        if not 1 <= len(name) <= 40:
-            return err('BAD_NAME', 'Jméno musí mít 1–40 znaků.')
-        p.name = name
-        p.save(update_fields=['name'])
+        if 'favorite' in request.data:
+            p.favorite = str(request.data['favorite']).lower() in ('1', 'true')
+        if 'name' in request.data:
+            name = str(request.data['name']).strip()
+            if not 1 <= len(name) <= 40:
+                return err('BAD_NAME', 'Jméno musí mít 1–40 znaků.')
+            p.name = name
+        p.save(update_fields=['name', 'favorite'])
     return Response(pet_json(p))
+
+
+MERGE_FIELDS = ('type', 'type2', 'species', 'rarity', 'seed', 'level', 'xp', 'stage', 'bonus_move', *pets.BASE_STATS)
+
+
+def _parents(request, data):
+    """Dva různí vlastní a zdraví tvorové ke šlechtění, nebo (None, chyba)."""
+    try:
+        ids = {int(data.get('a')), int(data.get('b'))}
+    except (TypeError, ValueError):
+        return None, err('BAD_REQUEST', 'Vyber dva tvory.')
+    found = list(Pet.objects.select_for_update().filter(pk__in=ids, owner=request.user).select_related('place'))
+    if len(ids) != 2 or len(found) != 2:
+        return None, err('BAD_PAIR', 'Vyber dva různé své tvory.')
+    if any(p.injured_until and p.injured_until > timezone.now() for p in found):
+        return None, err('PET_INJURED', 'Zraněný nebo vyčerpaný tvor se šlechtit nemůže.')
+    return sorted(found, key=lambda p: p.pk), None
+
+
+def _as_dict(p):
+    return {k: getattr(p, k) for k in MERGE_FIELDS}
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def merge_preview(request):
+    """Šance před šlechtěním (?a=&b=)."""
+    with transaction.atomic():
+        found, error = _parents(request, request.GET)
+    if error:
+        return error
+    a, b = found
+    return Response({**pets.merge_odds(_as_dict(a), _as_dict(b)), 'pair': [a.id, b.id]})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def pet_merge(request):
+    """{a, b} → spojí dva tvory do jednoho, rodiče zmizí. Když se to nepovede, s šancí pets.MERGE_LOSS
+    zmizí oba rodiče, jinak zůstanou, ale 30 min jsou vyčerpaní."""
+    import random
+    with transaction.atomic():
+        found, error = _parents(request, request.data)
+        if error:
+            return error
+        a, b = found
+        rng = random.SystemRandom()
+        spec = pets.merge(_as_dict(a), _as_dict(b), rng)
+        if spec is None:
+            lost = rng.random() < pets.MERGE_LOSS
+            parents = Pet.objects.filter(pk__in=[a.id, b.id])
+            if lost:
+                parents.delete()
+            else:
+                parents.update(injured_until=timezone.now() + pets.INJURY)
+            return Response({'success': False, 'lost': lost, 'parents': [a.id, b.id]})
+        extra = {k: spec.pop(k) for k in ('new_ability', 'new_species', 'rarity_up', 'mutation')}
+        main = a if (a.level, a.xp) >= (b.level, b.xp) else b
+        child = Pet.objects.create(owner=request.user, place=main.place, checkin=None, verified=a.verified and b.verified,
+                                   favorite=a.favorite or b.favorite,
+                                   lore=f'Vyšlechtěn spojením tvorů {a.name} a {b.name}.', **spec)
+        a.delete()
+        b.delete()
+    return Response({'success': True, 'parents': [a.id, b.id], 'pet': pet_json(child),
+                     'new_ability': extra['new_ability'] and engine.MOVES[extra['new_ability']]['name'],
+                     'new_species': extra['new_species'], 'rarity_up': extra['rarity_up'], 'mutation': extra['mutation']})
 
 
 @api_view(['POST'])

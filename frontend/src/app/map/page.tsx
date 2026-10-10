@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { LocateFixed, X } from 'lucide-react';
+import { Crown, LocateFixed, X } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Guide } from '@/components/guide/Guide';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { gameApi, type Category, type PlaceDetail, type PlaceFeature } from '@/lib/api';
+import { battleApi, gameApi, type BossInfo, type Category, type PlaceDetail, type PlaceFeature } from '@/lib/api';
 import { PlaceAbout, PlacePhoto } from '@/components/place/PlacePhoto';
 import { PetArt } from '@/components/pet/PetCard';
 import { CATEGORY, RARITY, distanceM, formatDistance } from '@/lib/game';
@@ -21,6 +21,7 @@ export default function MapPage() {
   const { user } = useAuth();
   const [features, setFeatures] = useState<PlaceFeature[]>([]);
   const [stamped, setStamped] = useState<Set<number>>(new Set());
+  const [bosses, setBosses] = useState<BossInfo[]>([]);
   const [filter, setFilter] = useState<Set<Category>>(new Set());
   const [selected, setSelected] = useState<PlaceFeature | null>(null);
   const [me, setMe] = useState<[number, number] | null>(null);
@@ -39,6 +40,7 @@ export default function MapPage() {
 
   useEffect(() => {
     gameApi.places().then((d) => setFeatures(d.features)).catch(() => setError('Místa se nenačetla. Zkontroluj připojení a obnov stránku.'));
+    battleApi.bosses().then(setBosses).catch(() => {});
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage až po hydrataci
     setTip(!localStorage.getItem(TIP_KEY));
   }, []);
@@ -70,7 +72,9 @@ export default function MapPage() {
   return (
     <AppShell fullBleed>
       <div className="relative h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))]">
-        <PlacesMap features={visible} stamped={stamped} onSelect={(f) => { setSelected(f); closeTip(); }} onLocate={(a, b) => setMe([a, b])} centerOnMe={centerTick} />
+        <PlacesMap features={visible} stamped={stamped} onSelect={(f) => { setSelected(f); closeTip(); }} onLocate={(a, b) => setMe([a, b])} centerOnMe={centerTick}
+          bosses={bosses.map((b) => ({ id: b.place.id, lat: b.place.lat, lon: b.place.lon, name: b.boss.name, defeated: b.fought }))}
+          onBoss={(id) => { const f = features.find((x) => x.properties.id === id); if (f) { setSelected(f); closeTip(); } }} />
 
         <div className="absolute inset-x-0 top-0 z-[500] flex gap-2 overflow-x-auto px-3 py-3 [scrollbar-width:none]" role="group" aria-label="Filtr kategorií">
           {(Object.keys(CATEGORY) as Category[]).map((c) => {
@@ -121,6 +125,19 @@ export default function MapPage() {
               {stamped.has(selected.properties.id) && <span className="rounded-full bg-trail-yellow/30 px-2.5 py-0.5 font-semibold">V Pasu</span>}
               {dist != null && <span className="text-muted-foreground">{formatDistance(dist)} od tebe</span>}
             </div>
+            {(() => {
+              const b = bosses.find((x) => x.place.id === selected.properties.id);
+              return b && (
+                <Link href={`/place/${b.place.id}#boss`} className="mt-3 flex items-center gap-3 rounded-2xl border-2 border-amber-400/70 bg-gradient-to-r from-amber-300/25 to-red-400/15 p-2.5">
+                  <PetArt type={b.boss.type} seed={b.boss.seed} stage={3} rarity="legendary" size={56} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300"><Crown className="h-3.5 w-3.5" aria-hidden /> Boss týdne</span>
+                    <span className="block truncate font-bold">{b.boss.name}</span>
+                    <span className="block text-xs text-muted-foreground">{b.defeated ? 'Tento týden jsi ho porazil.' : b.fought ? 'Tento týden jsi s ním už bojoval.' : 'Za výhru legendární tvor. Vyraz třeba s kamarády, musíte být do 300 m.'}</span>
+                  </span>
+                </Link>
+              );
+            })()}
             {detail?.id === selected.properties.id && (
               <>
                 <div className="mt-3 flex items-center gap-3 rounded-xl bg-muted px-3 py-2 text-sm">

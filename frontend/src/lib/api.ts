@@ -277,6 +277,9 @@ export interface Pet {
   evolve_level: number | null;
   injured_until: string | null;
   moves: MoveInfo[];
+  type2: PetType | '';   // kříženec dvou typů
+  bonus_move: string;    // vyšlechtěné kouzlo
+  favorite: boolean;
   seed: number;
   lore: string;
   verified: boolean;
@@ -298,6 +301,7 @@ export interface MoveInfo {
   heal?: number;
   drain?: number;
   type?: PetType;
+  bred?: boolean; // vyšlechtěné kouzlo
 }
 
 export interface CheckIn {
@@ -372,6 +376,10 @@ export const gameApi = {
   checkIn: (form: FormData) => apiFetch<CheckInResult>('/api/checkins/', { method: 'POST', body: form }),
   myCheckins: () => apiFetch<CheckIn[]>('/api/checkins/me/', { cache: 'no-store' }),
   myPets: () => apiFetch<Pet[]>('/api/pets/me/'),
+  favoritePet: (id: number, favorite: boolean) =>
+    apiFetch<Pet>(`/api/pets/${id}/`, { method: 'PATCH', body: JSON.stringify({ favorite }) }),
+  mergeOdds: (a: number, b: number) => apiFetch<MergeOdds>(`/api/pets/merge/preview/?a=${a}&b=${b}`, { cache: 'no-store' }),
+  merge: (a: number, b: number) => apiFetch<MergeResult>('/api/pets/merge/', { method: 'POST', body: JSON.stringify({ a, b }) }),
   evolvePet: (id: number) => apiFetch<Pet>(`/api/pets/${id}/evolve/`, { method: 'POST' }),
   renamePet: (id: number, name: string) =>
     apiFetch<Pet>(`/api/pets/${id}/`, { method: 'PATCH', body: JSON.stringify({ name }) }),
@@ -420,37 +428,50 @@ export function errorMessage(e: unknown): string {
 // ── Souboje (PROJECT_SPEC 9, 10) ─────────────────────────────────────────────
 
 export type Move = string;
+export type BattleMode = 'ranked' | 'friendly' | 'practice' | 'ffa' | 'team' | 'boss';
 
+/** Bojovník ve slotu a–d. Výdrž (sp) jen u tebe a spojenců. */
 export interface BattleFighter {
+  slot: string;
+  team: string;
+  me: boolean;
+  ally: boolean;
+  owner: string | null; // přezdívka hráče, null = strážce / boss
+  boss?: boolean;
   hp: number;
   max_hp: number;
-  sp: number;
-  max_sp: number;
+  sp?: number;
+  max_sp?: number;
   guard: boolean;
   type: PetType;
+  type2?: PetType | '';
   name: string;
   seed: number;
   stage: number;
   rarity: Rarity;
   level: number;
-  moves?: MoveInfo[]; // jen u tebe
 }
 
 export interface BattleState {
   type: 'state';
   battle_id: string;
-  mode: 'ranked' | 'friendly' | 'practice';
+  mode: BattleMode;
+  size: number;
   status: 'waiting' | 'active' | 'finished' | 'abandoned';
   turn: number | null;
-  you: BattleFighter | null;
-  opp: BattleFighter | null;
   deadline: string | null;
+  me: string | null;
+  fighters: BattleFighter[];
+  moves: MoveInfo[] | null;
   waiting_for_you: boolean;
+  waiting_for: string[];
   is_bot: boolean;
+  boss: { place: number; place_name: string; week: string } | null;
 }
 
 export interface TurnEvent {
-  actor: 'you' | 'opp';
+  actor: string;   // slot
+  target?: string; // slot zasaženého
   move: Move;
   name: string;
   kind: MoveInfo['kind'];
@@ -472,34 +493,62 @@ export interface TurnResult {
 export interface BattleEnd {
   type: 'battle_end';
   winner: 'you' | 'opp' | 'draw';
+  winners: string[];
   xp: number;
   rating_delta: number;
   level_up: number | null;
   injured_until: string | null;
   can_evolve: boolean;
+  reward: { pet: Pet | null; badges: { code: string; name: string; icon: string }[] } | null;
 }
 
 export interface BattleDetail extends Omit<BattleState, 'type'> {
   log: TurnResult[];
   joinable: boolean;
+  is_host: boolean;
+  free_teams: string[];
   challenger: string;
   invited: string | null;
   is_participant: boolean;
   result?: BattleEnd;
 }
 
+export interface BossInfo {
+  place: { id: number; name: string; lat: number; lon: number; category: Category };
+  boss: { name: string; species: string; title: string; type: PetType; seed: number; rarity: Rarity; stage: number };
+  fought: boolean;   // tento týden už s ním bojoval (jednou za týden)
+  defeated: boolean; // a porazil ho
+  until: string;     // neděle, pak se bosové přesunou
+}
+
+export interface MergeOdds { success: number; hybrid: boolean; ability: number; rarity_up: number; mutation: number; loss: number }
+export interface MergeResult {
+  success: boolean;
+  lost?: boolean; // nepovedlo se a oba rodiče zmizeli
+  parents: number[];
+  pet?: Pet;
+  new_ability?: string;
+  new_species?: boolean;
+  rarity_up?: boolean;
+  mutation?: string | null;
+}
+
 export const battleApi = {
-  create: (mode: 'practice' | 'friendly' | 'ranked', pet_id: number, invite?: string) =>
+  create: (mode: 'practice' | 'friendly' | 'ranked' | 'ffa' | 'team', pet_id: number, invite?: string) =>
     apiFetch<{ battle_id: string; status: string; mode: string }>('/api/battles/', {
       method: 'POST',
       body: JSON.stringify({ mode, pet_id, invite }),
     }),
   challenges: () => apiFetch<Challenge[]>('/api/battles/challenges/', { cache: 'no-store' }),
-  join: (id: string, pet_id: number) =>
+  join: (id: string, pet_id: number, team?: string, position?: Record<string, number | boolean>) =>
     apiFetch<{ battle_id: string; status: string }>(`/api/battles/${id}/join/`, {
       method: 'POST',
-      body: JSON.stringify({ pet_id }),
+      body: JSON.stringify({ pet_id, team, ...position }),
     }),
+  start: (id: string) => apiFetch<{ battle_id: string; status: string }>(`/api/battles/${id}/start/`, { method: 'POST' }),
+  bosses: () => apiFetch<BossInfo[]>('/api/battles/bosses/', { cache: 'no-store' }),
+  challengeBoss: (placeId: number, data: Record<string, string | number | boolean>) =>
+    apiFetch<{ battle_id: string }>(`/api/battles/bosses/${placeId}/`, { method: 'POST', body: JSON.stringify(data) }),
   get: (id: string) => apiFetch<BattleDetail>(`/api/battles/${id}/`, { cache: 'no-store' }),
 };
 
@@ -507,6 +556,8 @@ Object.assign(ERROR_TEXT, {
   NO_PET: 'Vyber svého PETa.',
   PET_NOT_VERIFIED: 'Do hodnoceného souboje smí jen ověření PETi (ne demo).',
   NOT_WAITING: 'Souboj už začal nebo skončil.',
+  BOSS_FOUGHT: 'S tímhle bosem jsi tento týden už bojoval. Příští týden se objeví jinde.',
+  NOT_HOST: 'Souboj spouští ten, kdo bosse vyzval.',
   SELF: 'Nemůžeš bojovat sám se sebou.',
 });
 

@@ -8,12 +8,12 @@ export const HERO = { type: 'view', seed: 419916, name: 'Vyhlídal', place: 'Roz
 const GLOW = ELEMENT_GLOW[HERO.type];
 const TYPE_COLOR = PET_TYPE[HERO.type].color;
 
-const REVEAL = 122;
+const REVEAL = 90;
 const RARITIES: { at: number; r: Rarity; label: string; color: string }[] = [
   { at: REVEAL, r: 'common', label: 'Běžný', color: '#a8b0aa' },
-  { at: 148, r: 'rare', label: 'Vzácný', color: '#5aa9f0' },
-  { at: 168, r: 'epic', label: 'Epický', color: '#c084fc' },
-  { at: 186, r: 'legendary', label: 'Legendární', color: '#fcd34d' },
+  { at: 110, r: 'rare', label: 'Vzácný', color: '#5aa9f0' },
+  { at: 130, r: 'epic', label: 'Epický', color: '#c084fc' },
+  { at: 150, r: 'legendary', label: 'Legendární', color: '#fcd34d' },
 ];
 const STATS: [string, number, number][] = [['Život', 312, 320], ['Útok', 61, 70], ['Obrana', 38, 45], ['Rychlost', 35, 40], ['Magie', 66, 70]];
 const SEEDS = [{ label: 'místo', tilt: -18 }, { label: 'foto', tilt: 42 }, { label: 'hráč', tilt: 102 }];
@@ -22,13 +22,14 @@ const CRACKS = ['M0 0l-60-40-30-90-70-60', 'M0 0l80-20 60-80 90-30', 'M0 0l20 90
 const CX = 960, CY = 470;
 
 /** Scéna 5: razítko praskne, z místa + fota + hráče se zrodí tvor, odhalí se rarita a evoluce. */
-export function PetBirth() {
+export function PetBirth({ dur }: { dur: number }) {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const burst = 46;
-  const flash = Math.max(interpolate(f, [burst - 1, burst, burst + 14], [0, 0.7, 0], clamp), interpolate(f, [112, REVEAL, REVEAL + 18], [0, 1, 0], clamp));
+  const burst = 30;
+  const flash = Math.max(interpolate(f, [burst - 1, burst, burst + 14], [0, 0.7, 0], clamp), interpolate(f, [REVEAL - 8, REVEAL, REVEAL + 14], [0, 1, 0], clamp),
+    interpolate(f, [dur - 8, dur], [0, 0.85], clamp)); // světelný přechod do typové věže
   const rarity = [...RARITIES].reverse().find((x) => f >= x.at) ?? RARITIES[0];
-  const montage = interpolate(f, [258, 276], [0, 1], clamp);
+  const montage = interpolate(f, [186, 198], [0, 1], clamp);
 
   return (
     <AbsoluteFill style={{
@@ -36,11 +37,11 @@ export function PetBirth() {
       background: `radial-gradient(circle at 50% 44%, color-mix(in oklab, ${f >= REVEAL ? rarity.color : GLOW} ${interpolate(f, [0, burst, REVEAL], [6, 24, 34], clamp)}%, #0b1020), #05070d 72%)`,
     }}>
       {f < REVEAL && <Birth f={f} burst={burst} />}
-      {f >= REVEAL && f < 276 && <Reveal f={f} fps={fps} rarity={rarity} out={montage} />}
-      {f >= 258 && <Evolution f={f} fps={fps} fade={montage} />}
+      {f >= REVEAL && f < 198 && <Reveal f={f} fps={fps} rarity={rarity} out={montage} />}
+      {f >= 186 && <Evolution f={f} fps={fps} fade={montage} />}
 
-      <Caption from={10} to={114} y={880}>Tvor se zrodí z místa, které jsi dobyl.</Caption>
-      <Caption from={336} to={388} y={880}>Každý hráč má jiného. A roste s tebou.</Caption>
+      <Caption from={8} to={86} y={880}>Tvor se zrodí z místa, které jsi dobyl.</Caption>
+      <Caption from={210} to={dur - 6} y={880}>Každý hráč má jiného. A roste s tebou.</Caption>
       <AbsoluteFill style={{ background: '#fff', opacity: flash }} />
     </AbsoluteFill>
   );
@@ -48,10 +49,10 @@ export function PetBirth() {
 
 function Birth({ f, burst }: { f: number; burst: number }) {
   const shake = interpolate(f, [8, burst], [0, 9], clamp);
-  const crack = interpolate(f, [10, burst - 2], [1, 0], { ...clamp, easing: Easing.in(Easing.quad) });
-  const fly = interpolate(f, [burst, burst + 40], [0, 1], { ...clamp, easing: easeOut });
-  const core = interpolate(f, [burst - 4, burst + 16], [0, 1], { ...clamp, easing: easeOut });
-  const pull = interpolate(f, [40, 118], [1, 0.04], { ...clamp, easing: Easing.in(Easing.cubic) });
+  const crack = interpolate(f, [6, burst - 2], [1, 0], { ...clamp, easing: Easing.in(Easing.quad) });
+  const fly = interpolate(f, [burst, burst + 30], [0, 1], { ...clamp, easing: easeOut });
+  const core = interpolate(f, [burst - 4, burst + 12], [0, 1], { ...clamp, easing: easeOut });
+  const pull = interpolate(f, [26, 86], [1, 0.04], { ...clamp, easing: Easing.in(Easing.cubic) });
   const quarters = ['0 0, 52% 0, 48% 50%, 0 46%', '52% 0, 100% 0, 100% 54%, 48% 50%', '48% 50%, 100% 54%, 100% 100%, 50% 100%', '0 46%, 48% 50%, 50% 100%, 0 100%'];
   const dirs = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 
@@ -80,7 +81,7 @@ function Birth({ f, burst }: { f: number; burst: number }) {
       }} />
 
       {/* tři „řetězce“ DNA: místo, foto, hráč, stahují se do jiskry */}
-      <svg width="1920" height="1080" style={{ position: 'absolute', opacity: interpolate(f, [34, 52, 108, 118], [0, 1, 1, 0], clamp) }}>
+      <svg width="1920" height="1080" style={{ position: 'absolute', opacity: interpolate(f, [22, 34, 80, 88], [0, 1, 1, 0], clamp) }}>
         {SEEDS.map(({ label, tilt }, k) => {
           const rx = 420 * pull, ry = 120 * pull;
           const th = f / (6 + pull * 10) + (k * Math.PI * 2) / 3;
@@ -103,8 +104,8 @@ function Birth({ f, burst }: { f: number; burst: number }) {
 function Reveal({ f, fps, rarity, out }: { f: number; fps: number; rarity: (typeof RARITIES)[number]; out: number }) {
   const t = f - REVEAL;
   const pop = spring({ frame: t, fps, config: { damping: 9, mass: 0.8 } });
-  const legendary = interpolate(f, [186, 196, 226], [0, 1, 0.55], clamp);
-  const panel = interpolate(t, [18, 40], [0, 1], { ...clamp, easing: easeOut });
+  const legendary = interpolate(f, [150, 158, 180], [0, 1, 0.55], clamp);
+  const panel = interpolate(t, [10, 26], [0, 1], { ...clamp, easing: easeOut });
   return (
     <AbsoluteFill style={{ opacity: 1 - out, transform: `scale(${1 - out * 0.15})` }}>
       {/* paprsky jako v Evolution.tsx */}
@@ -136,7 +137,7 @@ function Reveal({ f, fps, rarity, out }: { f: number; fps: number; rarity: (type
         </div>
         <div style={{ marginTop: 38, display: 'grid', gap: 16 }}>
           {STATS.map(([label, v, max], i) => {
-            const fill = interpolate(t, [34 + i * 6, 64 + i * 6], [0, 1], { ...clamp, easing: easeOut });
+            const fill = interpolate(t, [20 + i * 4, 42 + i * 4], [0, 1], { ...clamp, easing: easeOut });
             return (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 18, fontSize: 28 }}>
                 <span style={{ width: 150, opacity: 0.75 }}>{label}</span>
@@ -157,7 +158,7 @@ function Evolution({ f, fps, fade }: { f: number; fps: number; fade: number }) {
   return (
     <AbsoluteFill style={{ opacity: fade }}>
       {STAGES.map((label, i) => {
-        const at = 280 + i * 22;
+        const at = 196 + i * 13;
         const t = f - at;
         const silhouette = t < 6;
         const pop = spring({ frame: t, fps, config: { damping: 10 } });

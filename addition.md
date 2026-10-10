@@ -56,3 +56,4 @@ Odznaky a questy na Dobroty.
 Kroky 1 až 3 dávají použitelné demo i kdyby se vše ostatní nestihlo.
 
 Chceš, abych rozjel krok 1, tedy skript pro stažení a spojení datasetů míst do JSON? Potřebuju k tomu vědět jen jedno: které kategorie míst mají být ve hře (hrady, zámky, rozhledny, prameny, UNESCO, muzea, ...)?
+

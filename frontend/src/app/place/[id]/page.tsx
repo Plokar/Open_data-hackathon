@@ -11,7 +11,8 @@ import { Guide } from '@/components/guide/Guide';
 import { PlaceAbout, PlacePhoto } from '@/components/place/PlacePhoto';
 import { useAuth } from '@/contexts/AuthContext';
 import { errorMessage, gameApi, type CheckInResult, type PlaceDetail } from '@/lib/api';
-import { CATEGORY, RARITY, formatDistance } from '@/lib/game';
+import { CATEGORY, RARITY, formatDistance, position } from '@/lib/game';
+import { BossPanel } from '@/components/battle/BossPanel';
 import { cn } from '@/lib/utils';
 
 /** Zmenší fotku na max. 1600 px (rychlost na mobilu). Když to prohlížeč neumí, pošle originál. */
@@ -27,15 +28,6 @@ async function resize(file: File, max = 1600): Promise<Blob> {
   } catch {
     return file;
   }
-}
-
-function position(): Promise<GeolocationPosition> {
-  return new Promise((res, rej) => {
-    if (!navigator.geolocation) return rej(new Error('Prohlížeč neumí zjistit polohu.'));
-    navigator.geolocation.getCurrentPosition(res, () => rej(new Error('Povol přístup k poloze (a použij HTTPS).')), {
-      enableHighAccuracy: true, timeout: 20000, maximumAge: 0,
-    });
-  });
 }
 
 export default function PlacePage() {
@@ -110,6 +102,8 @@ export default function PlacePage() {
           <span>Nevstupuj do uzavřených prostor, štol ani na nezabezpečené zříceniny. Razítko platí z veřejně přístupného místa do 300 m.</span>
         </div>
       )}
+
+      <BossPanel placeId={place.id} />
 
       <div className="mt-4"><PlaceAbout place={place} /></div>
 

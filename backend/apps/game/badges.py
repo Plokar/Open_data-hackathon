@@ -34,6 +34,8 @@ def progress(rule, user):
         return stamps.filter(forgotten=True).count(), rule['n']
     if kind == 'trails':
         return quests.trails_done(user), rule['n']
+    if kind == 'boss':
+        return user.boss_wins.filter(won=True).count(), rule['n']
     if kind == 'food_kinds':
         return quests.tasted_count(user), rule['n']
     raise ValueError(f'Neznámé pravidlo {kind}')

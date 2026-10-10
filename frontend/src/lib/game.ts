@@ -39,3 +39,19 @@ export function distanceM(lat1: number, lon1: number, lat2: number, lon2: number
   const a = Math.sin(r(lat2 - lat1) / 2) ** 2 + Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(r(lon2 - lon1) / 2) ** 2;
   return Math.round(2 * 6371000 * Math.asin(Math.sqrt(a)));
 }
+
+/** Poloha pro výzvu bosse a připojení k partě (server ověří do 300 m od místa). */
+export async function positionPayload(demo = false) {
+  const pos = await position();
+  return { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy, client_ts: Date.now(), ...(demo ? { demo: true } : {}) };
+}
+
+/** Přesná poloha pro razítko a výzvu bosse (ověřuje server). */
+export function position(): Promise<GeolocationPosition> {
+  return new Promise((res, rej) => {
+    if (!navigator.geolocation) return rej(new Error('Prohlížeč neumí zjistit polohu.'));
+    navigator.geolocation.getCurrentPosition(res, () => rej(new Error('Povol přístup k poloze (a použij HTTPS).')), {
+      enableHighAccuracy: true, timeout: 20000, maximumAge: 0,
+    });
+  });
+}

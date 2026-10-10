@@ -14,5 +14,7 @@
  {"model": "game.badge", "pk": 13, "fields": {"code": "taste_master", "name": "Mistr chutí", "icon": "🥖", "description": "Navštiv výrobce ze všech 5 druhů Dobrot Karlovarského kraje.", "rule": {"type": "food_kinds", "n": 5}}},
  {"model": "game.badge", "pk": 14, "fields": {"code": "trail_1", "name": "První výprava", "icon": "🥾", "description": "Dokonči výpravu bez auta: všechna místa od jedné autobusové zastávky.", "rule": {"type": "trails", "n": 1}}},
  {"model": "game.badge", "pk": 15, "fields": {"code": "trail_3", "name": "Cestovatel bez auta", "icon": "🧭", "description": "Dokonči 3 výpravy bez auta.", "rule": {"type": "trails", "n": 3}}},
- {"model": "game.badge", "pk": 16, "fields": {"code": "swimmer", "name": "Koupací sezóna", "icon": "🏊", "description": "Orazítkuj 3 koupací místa v létě (červen–srpen).", "rule": {"type": "season", "months": [6, 7, 8], "category": "nature", "subtype": "Koupací", "n": 3}}}
+ {"model": "game.badge", "pk": 16, "fields": {"code": "swimmer", "name": "Koupací sezóna", "icon": "🏊", "description": "Orazítkuj 3 koupací místa v létě (červen–srpen).", "rule": {"type": "season", "months": [6, 7, 8], "category": "nature", "subtype": "Koupací", "n": 3}}},
+ {"model": "game.badge", "pk": 17, "fields": {"code": "boss_slayer", "name": "Přemožitel bosů", "icon": "👑", "description": "Poraz bosse, který se objevil na mapě.", "rule": {"type": "boss", "n": 1}}},
+ {"model": "game.badge", "pk": 18, "fields": {"code": "boss_hunter", "name": "Lovec bosů", "icon": "🐉", "description": "Poraz pět bosů na různých místech kraje.", "rule": {"type": "boss", "n": 5}}}
 ]

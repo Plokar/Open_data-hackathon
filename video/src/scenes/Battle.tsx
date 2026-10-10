@@ -1,8 +1,8 @@
-import { AbsoluteFill, interpolate, OffthreadVideo, random, Sequence, staticFile, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Easing, interpolate, OffthreadVideo, random, Sequence, staticFile, useCurrentFrame } from 'remotion';
 import phonesRec from '../../public/rec/battle-phones.json';
 import hdA from '../../public/rec/battle-a.json';
 import hdB from '../../public/rec/battle-b.json';
-import { C, Caption, Phone, SANS, Tap, clamp, easeOut } from '../kit';
+import { C, Caption, Phone, SANS, clamp, easeOut } from '../kit';
 
 /*
  * Scéna 7 ze skutečného souboje (scripts/record-battle.mjs): Bára (Vyhlídal) a Kuba (Baštoun), hodnocený matchmaking.
@@ -15,36 +15,41 @@ const ev = (rec: Rec, name: string) => rec.events.find((e) => e.name === name)!;
 const at = (rec: Rec, name: string, side: Side) => ev(rec, name)[`t_${side}`] as number;
 const F = 30;
 
-// 7.2: kouzla ve 3×, aréna přes celou obrazovku. off = sekundy od ťuknutí druhého hráče v kole, y = výřez (0 nahoře, 1 dole)
-const CLIPS: { side: Side; turn: string; off: number; dur: number; rate?: number; y: number }[] = [
-  { side: 'a', turn: 'turn1_b_rockfall', off: 0.25, dur: 1.3, y: 0.1 },     // Blesk z výšin, kritický zásah
-  { side: 'b', turn: 'turn2_b_siege_fire', off: 2.3, dur: 1.7, y: 0.35 },  // Ohnivá střela z hradeb, velmi účinné
-  { side: 'a', turn: 'turn3_b_rockfall', off: 0.5, dur: 1.5, y: 0.4 },     // Sluneční paprsek
-  { side: 'b', turn: 'turn6_b_siege_fire', off: 2.2, dur: 2.5, rate: 0.5, y: 0 }, // KO ve zpomalení, HP bar na nulu
+// 7.2: kouzla ve 3×, aréna přes celou obrazovku. off = sekundy od ťuknutí druhého hráče v kole, d = délka ve snímcích,
+// y = výřez (0 nahoře, 1 dole). Zásah KO padne na hudební akcent (originál 48,1 s).
+const CLIPS: { side: Side; turn: string; off: number; d: number; rate?: number; y: number }[] = [
+  { side: 'a', turn: 'turn1_b_rockfall', off: 0.25, d: 40, y: 0.1 },      // Blesk z výšin, kritický zásah
+  { side: 'b', turn: 'turn2_b_siege_fire', off: 2.3, d: 45, y: 0.35 },    // Ohnivá střela z hradeb, velmi účinné
+  { side: 'a', turn: 'turn3_b_rockfall', off: 0.5, d: 39, y: 0.4 },       // Sluneční paprsek
+  { side: 'b', turn: 'turn6_b_siege_fire', off: 2.0, d: 116, rate: 0.5, y: 0 }, // KO ve zpomalení, HP bar na nulu
 ];
 const HD = { a: hdA as Rec, b: hdB as Rec };
 const PHONES = phonesRec as Rec;
-const MONTAGE = 90, END = 300;
-const FLASH = 45; // blesk „Soupeř nalezen“; střih přeskočí načítání arény (Pixi scéna se v dev buildu staví ~7 s)
+const MONTAGE = 60, END = 300;
+const FLASH = 0; // drop: blesk „Soupeř nalezen“, rovnou obě arény (Pixi scéna se v dev buildu staví ~7 s, to přeskočíme)
 
-/** Scéna 7: matchmaking na dvou telefonech, střih kouzel, vítězství s konfetami. */
-export function Battle() {
+/** Scéna 7: drop, soupeř nalezen na dvou telefonech, střih kouzel, vítězství s konfetami. */
+export function Battle({ dur }: { dur: number }) {
   const f = useCurrentFrame();
+  const drop = interpolate(f, [dur - 2, dur + 12], [0, 1], { ...clamp, easing: Easing.in(Easing.cubic) }); // telefony odjedou dolů
   let from = MONTAGE;
   return (
     <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 40%, ${C.spruce}, ${C.night} 75%)`, overflow: 'hidden' }}>
-      <Sequence durationInFrames={MONTAGE}><TwoPhones shots={[{ at: 0, cue: 'b_queue', lead: 0.5 }, { at: FLASH, cue: 'turn1_a_thunder', lead: 1.3 }]} match /></Sequence>
+      <Sequence durationInFrames={MONTAGE}><TwoPhones shots={[{ at: 0, cue: 'turn1_a_thunder', lead: 1.3 }]} match /></Sequence>
       {CLIPS.map((c) => {
-        const d = Math.round(c.dur * F);
-        const s = <Sequence key={c.turn + c.side} from={from} durationInFrames={d}><Clip {...c} frames={d} /></Sequence>;
-        from += d;
+        const s = <Sequence key={c.turn + c.side} from={from} durationInFrames={c.d}><Clip {...c} frames={c.d} /></Sequence>;
+        from += c.d;
         return s;
       })}
-      <Sequence from={END}><TwoPhones shots={[{ at: 0, cue: 'end', lead: 0.5 }]} /><Confetti /></Sequence>
+      <Sequence from={END}>
+        <div style={{ position: 'absolute', inset: 0, transform: `translateY(${drop * 1100}px)` }}><TwoPhones shots={[{ at: 0, cue: 'end', lead: 0.5 }]} /></div>
+        <Confetti />
+      </Sequence>
 
-      <Caption from={6} to={MONTAGE} y={950} size={56}>Souboj v reálném čase.</Caption>
-      <Caption from={END + 18} to={390} y={950} size={56}>Každý tah počítá server. Nikdo nepodvádí.</Caption>
+      <Caption from={4} to={MONTAGE - 2} y={950} size={56}>Souboj v reálném čase.</Caption>
+      <Caption from={END + 2} to={dur + 10} y={950} size={56}>Každý tah počítá server. Nikdo nepodvádí.</Caption>
       {f >= MONTAGE && f < END && <div style={{ position: 'absolute', inset: 0, boxShadow: 'inset 0 0 220px rgb(0 0 0 / 0.55)' }} />}
+      <AbsoluteFill style={{ background: '#fff', opacity: interpolate(f, [0, 8], [0.85, 0], clamp) }} />
     </AbsoluteFill>
   );
 }
@@ -55,7 +60,6 @@ function TwoPhones({ shots, match }: { shots: { at: number; cue: string; lead: n
   const W = 380;
   const bolt = interpolate(f - FLASH, [-2, 1, 12], [0, 1, 0], clamp);
   const pill = interpolate(f - FLASH, [0, 8], [0, 1], { ...clamp, easing: easeOut });
-  const tap = ev(PHONES, 'b_queue');
   return (
     <AbsoluteFill>
       {(['a', 'b'] as Side[]).map((side, i) => (
@@ -71,7 +75,6 @@ function TwoPhones({ shots, match }: { shots: { at: number; cue: string; lead: n
                 style={{ width: '100%', height: '100%' }} />
             </Sequence>
           ))}
-          {match && side === 'b' && <Tap at={Math.round(shots[0].lead * F)} x={tap.x!} y={tap.y!} />}
         </Phone>
       ))}
       {match && (
@@ -110,9 +113,9 @@ function Clip({ side, turn, off, rate = 1, y, frames }: (typeof CLIPS)[number] &
   );
 }
 
-/** Konfety v barvách turistických značek. */
-function Confetti() {
-  const f = useCurrentFrame();
+/** Konfety v barvách turistických značek. `offset` = navázání v další scéně (padají dál). */
+export function Confetti({ offset = 0 }: { offset?: number }) {
+  const f = useCurrentFrame() + offset;
   const colors = [C.red, C.blue, C.green, C.yellow, C.cream];
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>

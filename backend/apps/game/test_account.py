@@ -78,3 +78,47 @@ def test_admin_panel(place):
     assert c.delete(f'/api/panel/users/{u.id}/').status_code == 204 and not User.objects.filter(pk=u.id).exists()
     c.credentials(HTTP_AUTHORIZATION='Panel podvrh')
     assert c.get('/api/panel/stats/').status_code in (401, 403)
+
+
+
+def test_merge_success_and_failure(place, monkeypatch):
+    import random
+    u = _onboarded('chovatel')
+    other = Place.objects.create(source_item='t', source_layer=0, source_object_id='2', name='Pramen', category='spring', lat=50, lon=12.5)
+
+    def mk(pl, cat, seed):
+        return Pet.objects.create(owner=u, place=pl, checkin=None, level=2, xp=50, **pets.generate(pl.id, cat, 'rare', seed, u.id))
+
+    c = APIClient()
+    c.force_authenticate(u)
+    a, b = mk(place, 'castle', 'a'), mk(other, 'spring', 'b')
+    odds = c.get('/api/pets/merge/preview/', {'a': a.id, 'b': b.id}).data
+    assert odds['hybrid'] and odds['success'] == 0.6
+    assert c.post('/api/pets/merge/', {'a': a.id, 'b': a.id}).data['error_code'] == 'BAD_PAIR'
+    # nepovede se a rodiče přežijí: jsou vyčerpaní a hned znovu to nejde
+    monkeypatch.setattr(random, 'SystemRandom', lambda: type('R', (), {'random': lambda self: 0.99})())
+    r = c.post('/api/pets/merge/', {'a': a.id, 'b': b.id}).data
+    assert r['success'] is False and r['lost'] is False and Pet.objects.filter(owner=u).count() == 2
+    assert c.post('/api/pets/merge/', {'a': a.id, 'b': b.id}).data['error_code'] == 'PET_INJURED'
+    Pet.objects.filter(owner=u).update(injured_until=None)
+    monkeypatch.setattr(random, 'SystemRandom', lambda: random.Random(1))
+    r = c.post('/api/pets/merge/', {'a': a.id, 'b': b.id}).data
+    assert r['success'] and Pet.objects.filter(owner=u).count() == 1
+    child = r['pet']
+    assert child['type2'] in ('spring', 'fortress') and child['type2'] != child['type'] and child['is_demo'] is False
+    assert any(m['id'] in ('jet', 'rockfall') and m['type'] == child['type2'] for m in child['moves'])  # kouzlo druhého typu
+
+
+
+def test_failed_merge_can_lose_both_parents(place, monkeypatch):
+    import random
+    u = _onboarded('smolar')
+    pets_ = [Pet.objects.create(owner=u, place=place, checkin=None, **pets.generate(place.id, 'castle', 'common', s, u.id)) for s in 'xy']
+    rolls = iter([0.99, 0.1])  # neúspěch šlechtění, pak ztráta (0.1 < MERGE_LOSS)
+    monkeypatch.setattr(random, 'SystemRandom', lambda: type('R', (), {'random': lambda self: next(rolls)})())
+    c = APIClient()
+    c.force_authenticate(u)
+    r = c.post('/api/pets/merge/', {'a': pets_[0].id, 'b': pets_[1].id}).data
+    assert r == {'success': False, 'lost': True, 'parents': sorted(p.id for p in pets_)}
+    assert not Pet.objects.filter(owner=u).exists()
+    assert c.get('/api/pets/merge/preview/', {'a': 1, 'b': 2}).status_code == 400  # už nemá co šlechtit

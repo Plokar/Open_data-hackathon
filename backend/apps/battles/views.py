@@ -2,7 +2,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from datetime import timedelta
@@ -12,7 +12,7 @@ from django.utils import timezone
 from apps.game.models import Pet, Profile
 from apps.game.views import are_friends, err, profile_of
 
-from . import service
+from . import bosses, service
 from .consumers import group
 from .models import Battle
 
@@ -28,7 +28,8 @@ def _created(b):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_battle(request):
-    """{mode: practice|friendly|ranked, pet_id} → practice startuje hned, friendly čeká na join, ranked jde do fronty."""
+    """{mode: practice|friendly|ranked|ffa|team, pet_id} → practice startuje hned, friendly/ffa/team čekají
+    na spoluhráče (odkaz/QR), ranked jde do fronty."""
     mode, pet = request.data.get('mode'), _pet(request)
     if not pet:
         return err('NO_PET', 'Vyber svého PETa.')
@@ -45,13 +46,16 @@ def create_battle(request):
             return _created(service.create_waiting(request.user, pet, 'friendly', invited))
         if mode == 'ranked':
             return _queued(service.queue(request.user, pet))
+        if mode in ('ffa', 'team'):
+            return _created(service.create_waiting(request.user, pet, mode))
     except service.BattleError as e:
         return err(e.code, e.detail)
-    return err('BAD_MODE', 'mode = practice | friendly | ranked')
+    return err('BAD_MODE', 'mode = practice | friendly | ranked | ffa | team')
 
 
 def _queued(b):
-    if b.status == 'active':  # soupeř nalezen → probudit čekajícího hráče přes WS
+    # soupeř nalezen / někdo přibyl do čekárny skupinového souboje → probudit čekající přes WS
+    if b.status == 'active' or service.SIZE[b.mode] > 2:
         async_to_sync(get_channel_layer().group_send)(group(b.id), {'type': 'battle.update'})
     return _created(b)
 
@@ -74,9 +78,14 @@ def join_battle(request, pk):
     pet = _pet(request)
     if not pet:
         return err('NO_PET', 'Vyber svého PETa.')
-    get_object_or_404(Battle, pk=pk)
+    b = get_object_or_404(Battle, pk=pk)
+    if b.mode == 'boss':  # kamarád se přidá jen na místě a jen když s bosem tento týden ještě nebojoval
+        from apps.places.models import Place
+        error = _boss_position_error(request, Place.objects.get(pk=b.state['boss']['place']))
+        if error:
+            return error
     try:
-        return _queued(service.join(pk, request.user, pet))
+        return _queued(service.join(pk, request.user, pet, request.data.get('team') or None))
     except service.BattleError as e:
         return err(e.code, e.detail)
 
@@ -86,15 +95,17 @@ def join_battle(request, pk):
 def battle_detail(request, pk):
     b = get_object_or_404(Battle, pk=pk)
     side = service.side_of(b, request.user.id)
-    data = service.view(b, side or 'a')
-    data['log'] = [service.turn_result(e, side or 'a') for e in b.log]
-    data['joinable'] = (b.status == 'waiting' and b.mode == 'friendly' and side is None
-                        and b.invited_id in (None, request.user.id))
+    data = service.view(b, side)
+    data['log'] = [service.turn_result(e) for e in b.log]
+    data['joinable'] = (b.status == 'waiting' and side is None and bool(service.free_slots(b))
+                        and b.mode in ('friendly', 'ffa', 'team', 'boss') and b.invited_id in (None, request.user.id))
+    data['is_host'] = b.player_a_id == request.user.id
+    data['free_teams'] = sorted({service.team_of(b.mode, s) for s in service.free_slots(b)}) if b.mode == 'team' else []
     data['challenger'] = profile_of(b.player_a).nickname
     data['invited'] = b.invited and profile_of(b.invited).nickname
     data['is_participant'] = side is not None
     if b.status == 'finished':
-        data['result'] = service.battle_end(b, side or 'a')
+        data['result'] = service.battle_end(b, side)
     return Response(data)
 
 
@@ -108,3 +119,78 @@ def challenges(request):
                       'pet': b.pet_a and {'name': b.pet_a.name, 'type': b.pet_a.type, 'seed': b.pet_a.seed,
                                           'stage': b.pet_a.stage, 'rarity': b.pet_a.rarity, 'level': b.pet_a.level}}
                      for b in qs])
+
+
+def _boss_json(place, spec, user, week):
+    from apps.game.models import BossWin
+    mine = BossWin.objects.filter(user=user, place=place, week=week).first() if user.is_authenticated else None
+    return {'place': {'id': place.id, 'name': place.name, 'lat': place.lat, 'lon': place.lon, 'category': place.category},
+            'boss': {'name': spec['name'], 'species': spec['species'], 'title': spec['title'], 'type': spec['type'],
+                     'seed': spec['seed'], 'rarity': 'legendary', 'stage': 3},
+            'fought': bool(mine), 'defeated': bool(mine and mine.won),
+            'until': (week + timedelta(days=6)).isoformat()}
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def boss_list(request):
+    """Bosové tohoto týdne na mapě (každý týden jinde)."""
+    week = bosses.week_start()
+    return Response([_boss_json(p, s, request.user, week) for p, s in bosses.of_week(week)])
+
+
+def _boss_position_error(request, place):
+    """Hráč musí být u bosse (do 300 m) a s tímhle bosem tento týden ještě nebojovat. Vrací chybovou odpověď nebo None."""
+    from django.conf import settings
+    from apps.game import anticheat
+    from apps.game.views import _parse_ts
+    d = request.data
+    demo = str(d.get('demo', '')).lower() in ('1', 'true')
+    if demo and not (settings.DEMO_MODE and request.user.is_staff):
+        return err('DEMO_FORBIDDEN', 'Demo výzva není povolena.', 403)
+    try:
+        lat, lon, accuracy = float(d['lat']), float(d['lon']), float(d.get('accuracy', 9999))
+        client_ts = _parse_ts(d['client_ts'])
+    except (KeyError, ValueError, TypeError, OverflowError):
+        return err('BAD_REQUEST', 'Na bosse musíš být na místě: chybí poloha nebo čas.')
+    try:
+        anticheat.check_position(place, lat, lon, accuracy, client_ts, timezone.now(), None, settings.CHECKIN_RADIUS_M, demo)
+    except anticheat.Reject as r:
+        return err(r.code, r.detail, r.status, **r.extra)
+    if bosses.fought(request.user, place, bosses.week_start()):
+        return err('BOSS_FOUGHT', 'S tímhle bosem jsi tento týden už bojoval. Příští týden se objeví jinde.', 409)
+    return None
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def boss_challenge(request, place_id):
+    """{pet_id, lat, lon, accuracy, client_ts, solo?, demo?} → souboj s bosem; jako u razítka musíš být do 300 m.
+    solo=false otevře čekárnu pro kamarády na místě (přidají se přes odkaz/QR, hostitel spustí)."""
+    place, spec = bosses.active_at(int(place_id))
+    if not place:
+        return err('NO_BOSS', 'Tady tento týden žádný boss není.', 404)
+    pet = _pet(request)
+    if not pet:
+        return err('NO_PET', 'Vyber svého PETa.')
+    error = _boss_position_error(request, place)
+    if error:
+        return error
+    solo = str(request.data.get('solo', 'true')).lower() in ('1', 'true')
+    try:
+        return _created(service.create_boss(request.user, pet, place, spec, bosses.week_start(), solo))
+    except service.BattleError as e:
+        return err(e.code, e.detail)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def start_battle(request, pk):
+    """Hostitel spustí souboj s bosem (sám nebo s kamarády, kteří se mezitím přidali)."""
+    get_object_or_404(Battle, pk=pk)
+    try:
+        b = service.start_boss(pk, request.user)
+    except service.BattleError as e:
+        return err(e.code, e.detail)
+    async_to_sync(get_channel_layer().group_send)(group(b.id), {'type': 'battle.update'})
+    return _created(b)
