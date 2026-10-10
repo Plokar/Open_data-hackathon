@@ -1,0 +1,2 @@
+# Skripty spouštěné v Linux kontejnerech musí mít LF (jinak "set: -: invalid option")
+*.sh text eol=lf

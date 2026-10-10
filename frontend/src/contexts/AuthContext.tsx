@@ -7,7 +7,7 @@ import React, {
   useEffect,
   useState,
 } from 'react';
-import { authApi, type RegisterData, type User } from '@/lib/api';
+import { authApi, refreshSession, type RegisterData, type User } from '@/lib/api';
 
 interface AuthState {
   user: User | null;
@@ -34,7 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Načte aktuálního uživatele ze serveru */
   const refreshUser = useCallback(async () => {
     try {
-      const status = await authApi.checkStatus();
+      let status = await authApi.checkStatus();
+      // Access cookie mohla vypršet (prod 15 min), refresh cookie ještě žije
+      if (!status.authenticated && status.can_refresh && (await refreshSession())) status = await authApi.checkStatus();
       setState({
         user: status.user,
         isAuthenticated: status.authenticated,
@@ -80,6 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authApi.logout();
     } finally {
       setState({ user: null, isAuthenticated: false, isLoading: false });
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- záměrně celý reload, router.push by nechal router cache přihlášeného hráče
+      window.location.href = '/';
     }
   }, []);
 

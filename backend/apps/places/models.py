@@ -1,5 +1,7 @@
 from django.db import models
 
+FORGOTTEN_MAX_STAMPS = 2  # místo s tolika razítky nebo méně je „zapomenuté“
+
 
 class Place(models.Model):
     CATEGORIES = [(c, c) for c in ('castle', 'lookout', 'spring', 'culture', 'nature', 'heritage', 'food', 'info')]
@@ -34,3 +36,8 @@ class Place(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_forgotten(self):
+        """Málo navštěvované místo: dá bonus XP. Nebezpečná místa nikdy (nelákáme tam). Demo razítka se nepočítají."""
+        return not self.is_hazardous and self.checkins.filter(is_demo=False).count() <= FORGOTTEN_MAX_STAMPS

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { Landscape } from '@/components/brand/Landscape';
 import { TrailMark, type TrailColor } from '@/components/brand/TrailMark';
-import { GUIDES, GuideAvatar, MascotArt, type GuideId } from '@/components/guide/Guide';
+import { GUIDES, Guide, GuideAvatar, MascotArt, type GuideId } from '@/components/guide/Guide';
+import { TOUR_KEY } from '@/components/guide/Tour';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -117,6 +118,12 @@ function randomToken(len = 20) {
   return Array.from(a, (b) => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 }
 
+/** Kam po založení Pasu: zpět na pozvánku (?redirect=/battle/…), jinak na mapu. Jen interní cesty. */
+function afterStart() {
+  const r = new URLSearchParams(window.location.search).get('redirect');
+  return r && r.startsWith('/') && !r.startsWith('//') ? r : '/map';
+}
+
 export default function StartPage() {
   const router = useRouter();
   const { register, user } = useAuth();
@@ -126,9 +133,10 @@ export default function StartPage() {
   const [busy, setBusy] = useState(false);
   const last = STEPS.length; // poslední krok je jméno
 
+  // Tvrdá navigace: router cache drží prefetchnuté redirecty na /start z doby před přihlášením
   useEffect(() => {
-    if (user && !busy) router.replace('/map');
-  }, [user, busy, router]);
+    if (user && !busy) window.location.replace(afterStart());
+  }, [user, busy]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,7 +163,8 @@ export default function StartPage() {
           if (!taken || attempt >= 4) throw err;
         }
       }
-      router.replace('/map');
+      try { localStorage.setItem(TOUR_KEY, '1'); } catch { /* prohlídka se jen neukáže */ }
+      window.location.replace(afterStart());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Pas se nepodařilo založit. Zkus to znovu.');
       setBusy(false);
@@ -202,12 +211,16 @@ export default function StartPage() {
             </div>
             <form onSubmit={create} className="mt-6" noValidate>
               <label htmlFor="name" className="block text-[1.9rem] font-extrabold leading-tight tracking-tight">Jak ti máme říkat?</label>
-              <p className="mt-1 text-muted-foreground">Jméno uvidí ostatní v žebříčku. Nic víc nepotřebujeme.</p>
+              <p className="mt-1 text-muted-foreground">Jméno uvidí ostatní v žebříčku.</p>
               <Input id="name" className="mt-5 h-14 text-lg" value={name} onChange={(e) => { setName(e.target.value); setError(''); }}
                 placeholder="Třeba Bára" maxLength={30} autoComplete="given-name" autoFocus enterKeyHint="go"
                 aria-invalid={!!error} aria-describedby={error ? 'name-error' : undefined} />
               {error && <p id="name-error" role="alert" className="mt-2 text-sm font-medium text-destructive">{error}</p>}
               <Button type="submit" size="lg" className="mt-4 h-14 w-full text-lg" isLoading={busy}>Založit Pas</Button>
+              <Guide who="boza" className="mt-6">
+                Pas teď založíš jen se jménem. Aby ti nezmizel, přidej si pak v <b>profilu e-mail a heslo</b>.
+                Jen tak se k němu vrátíš z jiného telefonu nebo po odhlášení.
+              </Guide>
               <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
                 Založením souhlasíš, že při razítkování použijeme tvou polohu a fotku místa.
                 Fotky vidíš jen ty. <Link href="/privacy" className="underline">Zásady soukromí</Link>
@@ -230,7 +243,7 @@ export default function StartPage() {
         )}
       </nav>
       {step === 0 && (
-        <p className="mt-3 text-center text-sm text-muted-foreground">Už máš Pas? <Link href="/login" className="font-semibold text-primary underline">Přihlas se</Link></p>
+        <p className="mt-3 text-center text-sm text-muted-foreground">Už máš Pas? <Link href="/login" onClick={(e) => { e.preventDefault(); router.push(`/login${window.location.search}`); }} className="font-semibold text-primary underline">Přihlas se</Link></p>
       )}
     </div>
   );

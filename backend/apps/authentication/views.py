@@ -101,6 +101,62 @@ class RegisterView(generics.CreateAPIView):
         return response
 
 
+def resolve_username(ident):
+    """Přihlášení přezdívkou, e-mailem nebo přímo username."""
+    if User.objects.filter(username=ident).exists():
+        return ident
+    from django.db.models import Q
+    u = User.objects.filter(Q(email__iexact=ident) if '@' in ident else Q(profile__nickname__iexact=ident)).first()
+    return u.username if u else ident
+
+
+class CredentialsView(APIView):
+    """
+    POST /api/auth/credentials/ {email, password, password2, current_password?}
+    Účet ze jména si hráč „pojistí“ e-mailem a heslem (staré náhodné heslo nezná, proto ho nechceme).
+    U už pojištěného účtu je potřeba aktuální heslo; heslo je pak nepovinné (jen změna e-mailu).
+    """
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
+
+    def post(self, request):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        from django.core.validators import validate_email
+        from .serializers import is_claimed
+        user, d = request.user, request.data
+        claimed = is_claimed(user)
+        if claimed and not user.check_password(str(d.get('current_password', ''))):
+            return Response({'current_password': ['Aktuální heslo nesedí.']}, status=status.HTTP_400_BAD_REQUEST)
+        email, pw, pw2 = str(d.get('email', '')).strip().lower(), str(d.get('password', '')), str(d.get('password2', ''))
+        errors = {}
+        try:
+            validate_email(email)
+            if email.endswith('@zapadgo.cz') and email.startswith('hrac-'):
+                raise ValidationError('Zadej svůj vlastní e-mail.')
+        except ValidationError as e:
+            errors['email'] = [e.messages[0] if e.messages[0] != 'Enter a valid email address.' else 'Zadej platný e-mail.']
+        if 'email' not in errors and User.objects.filter(email__iexact=email).exclude(pk=user.pk).exists():
+            errors['email'] = ['Tenhle e-mail už používá jiný účet.']
+        if pw or not claimed:
+            if pw != pw2:
+                errors['password'] = ['Hesla se neshodují.']
+            else:
+                try:
+                    validate_password(pw, user)
+                except ValidationError as e:
+                    errors['password'] = e.messages
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        user.email = email
+        if pw:
+            user.set_password(pw)
+        user.save()
+        logger.info(f"Credentials set for {user.username} (claimed before: {claimed})")
+        return Response(UserSerializer(user).data)
+
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
     POST /api/auth/token/
@@ -111,14 +167,17 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     throttle_scope = 'auth'
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        # Formulář posílá přezdívku (nebo e-mail), ale onboarding zakládá username „prezdivka_ab12cd“
+        payload = {'username': resolve_username(str(request.data.get('username', '')).strip()),
+                   'password': request.data.get('password', '')}
+        serializer = self.get_serializer(data=payload)
         try:
             serializer.is_valid(raise_exception=True)
         except TokenError as e:
             raise InvalidToken(e.args[0])
 
         data = serializer.validated_data
-        user = User.objects.get(username=request.data.get('username'))
+        user = User.objects.get(username=payload['username'])
         refresh = RefreshToken.for_user(user)
 
         response_data = {
@@ -139,22 +198,19 @@ class CustomTokenRefreshView(TokenRefreshView):
     Refresh access tokenu – přijme refresh z body nebo cookie.
     """
     def post(self, request, *args, **kwargs):
-        # Pokud není refresh v body, zkusit cookie
-        refresh_token = request.COOKIES.get(
+        # Pokud není refresh v body, vzít cookie (request.data se mutovat nedá, prázdné tělo je obyčejný dict)
+        refresh_token = request.data.get('refresh') or request.COOKIES.get(
             settings.SIMPLE_JWT.get('AUTH_COOKIE_REFRESH', 'refresh_token')
         )
-        if refresh_token and 'refresh' not in request.data:
-            request.data._mutable = True if hasattr(request.data, '_mutable') else None
-            data = request.data.copy()
-            data['refresh'] = refresh_token
-            request._data = data
+        serializer = self.get_serializer(data={'refresh': refresh_token})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            raise InvalidToken(e.args[0]) from e
 
-        response = super().post(request, *args, **kwargs)
-
-        if response.status_code == 200:
-            refresh = RefreshToken(response.data.get('refresh', refresh_token))
-            set_jwt_cookies(response, refresh)
-
+        response = Response(serializer.validated_data)
+        # Po rotaci je v datech nový refresh token, cookies musí dostat ten
+        set_jwt_cookies(response, RefreshToken(serializer.validated_data.get('refresh', refresh_token)))
         return response
 
 
@@ -199,6 +255,11 @@ class UserProfileView(APIView):
         return Response(serializer.data)
 
     def put(self, request):
+        if 'photo_public' in request.data:  # soukromí fotek z razítek (výchozí: soukromé)
+            from apps.game.views import profile_of
+            profile = profile_of(request.user)
+            profile.photo_public = str(request.data['photo_public']).lower() in ('1', 'true')
+            profile.save(update_fields=['photo_public'])
         serializer = UserSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -253,7 +314,9 @@ def check_auth_status(request):
             'authenticated': True,
             'user': UserSerializer(request.user).data,
         })
-    return Response({'authenticated': False, 'user': None})
+    # Refresh cookie je httpOnly: klient se tu dozví, jestli má smysl zkusit obnovit prošlý access token
+    can_refresh = settings.SIMPLE_JWT.get('AUTH_COOKIE_REFRESH', 'refresh_token') in request.COOKIES
+    return Response({'authenticated': False, 'user': None, 'can_refresh': can_refresh})
 
 
 class ForgotPasswordView(APIView):

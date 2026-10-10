@@ -117,12 +117,18 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [f'{REDIS_URL}/2'],
+            # redis-py 8 má výchozí socket_timeout 5 s, stejně jako blokující čtení (BZPOPMIN) v channels_redis,
+            # takže každý WebSocket po ~5 s spadl na TimeoutError. Timeout musí být delší než 5 s.
+            'hosts': [{'address': f'{REDIS_URL}/2', 'socket_timeout': 30}],
             'capacity': 1500,
             'expiry': 10,
         },
     },
 }
+
+# ── Admin cheat panel (/panel) ────────────────────────────────────────────────
+ADMIN_PANEL_USERNAME = os.environ.get('ADMIN_PANEL_USERNAME', 'admin')
+ADMIN_PANEL_PASSWORD = os.environ.get('ADMIN_PANEL_PASSWORD', 'admin')
 
 # ── JWT Authentication ────────────────────────────────────────────────────────
 SIMPLE_JWT = {
@@ -185,6 +191,7 @@ REST_FRAMEWORK = {
         'user': '1000/hour',
         'checkin': '30/hour',
         'auth': '20/minute',
+        'panel_login': '10/minute',
     },
     'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -314,6 +321,8 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')  # odkazy
 CHECKIN_RADIUS_M = int(os.environ.get('CHECKIN_RADIUS_M', 300))
 # DEMO_MODE: staff smí razítkovat bez kontroly vzdálenosti (PROJECT_SPEC 8.3). V produkci False.
 DEMO_MODE = os.environ.get('DEMO_MODE', 'False') == 'True'
+# Místo dne podle počasí (Open-Meteo, bez klíče). Při výpadku nebo vypnutí se vybírá jen podle data.
+WEATHER_ENABLED = os.environ.get('WEATHER_ENABLED', 'True') == 'True'
 AI_VISION_VERIFY = os.environ.get('AI_VISION_VERIFY', 'False') == 'True'  # Gemini vision → jen úprava trust
 AI_LORE = os.environ.get('AI_LORE', 'False') == 'True'  # AI příběh PETa (AI_PROVIDER), jinak šablona
 PRIVATE_MEDIA_ROOT = BASE_DIR / 'private_media'  # fotky z check-inů, nikdy ne pod /media/

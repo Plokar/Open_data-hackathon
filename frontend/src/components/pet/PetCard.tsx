@@ -8,12 +8,13 @@ import { ELEMENT_GLOW, petDataUrl } from '@/lib/petArt';
 import { cn } from '@/lib/utils';
 
 /** Ilustrace tvora z generátoru (lib/petArt): stavba, doplňky a barvy ze seedu, vzhled podle evoluce a rarity. */
-export function PetArt({ type, seed, size = 120, label, stage = 1, rarity = 'common', back = false, className }: {
+export function PetArt({ type, seed, size = 120, label, stage = 1, rarity = 'common', back = false, className, type2 = '' }: {
   type: PetType; seed: number; size?: number; label?: string; stage?: number; rarity?: Rarity; back?: boolean; className?: string;
+  type2?: PetType | '';
 }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- lokální data URL SVG, next/image tu nic nepřidá
-    <img src={petDataUrl({ type, seed, stage, rarity, back })} width={size} height={size} alt={label ?? `Tvor typu ${PET_TYPE[type].label}`}
+    <img src={petDataUrl({ type, seed, stage, rarity, back, type2 })} width={size} height={size} alt={label ?? `Tvor typu ${PET_TYPE[type].label}`}
       className={className} draggable={false} />
   );
 }

@@ -20,10 +20,11 @@ from rest_framework.views import APIView
 from apps.battles import engine
 from apps.places.models import Place
 
-from . import ai_hooks, anticheat, badges, pets, quests
-from .models import Badge, CheckIn, Pet, Profile, Team, UserBadge
+from . import ai_hooks, anticheat, badges, pets, quests, rating
+from .models import Badge, CheckIn, Friendship, Pet, Profile, Team, UserBadge
 
 XP_BY_RARITY = {'common': 50, 'rare': 75, 'epic': 100, 'legendary': 150}
+FORGOTTEN_XP_MULT = 1.5  # bonus za málo navštěvované místo (rozkládá turisty po kraji)
 
 
 def err(code, detail, status=400, **extra):
@@ -45,8 +46,10 @@ def pet_json(p):
         'xp_next': pets.xp_for_level(p.level + 1) if p.level < pets.MAX_LEVEL else None,
         'stage': p.stage, 'stage_label': pets.STAGES[p.stage][0], 'can_evolve': pets.can_evolve(p),
         'evolve_level': pets.EVOLVE_LEVEL.get(p.stage + 1), 'injured_until': injured,
-        'moves': [{'id': m, **engine.MOVES[m]} for m in engine.moves_for(p.type, p.stage)],
-        'seed': p.seed, 'lore': p.lore, 'verified': p.verified, 'is_demo': p.checkin.is_demo,
+        'moves': [{'id': m, **engine.MOVES[m], 'bred': m in engine.BRED, 'type': p.type2 if m in engine.MAGIC.get(p.type2, ()) else p.type}
+                  for m in engine.moves_for(p.type, p.stage, p.type2, p.bonus_move)],
+        'type2': p.type2, 'bonus_move': p.bonus_move, 'favorite': p.favorite,
+        'seed': p.seed, 'lore': p.lore, 'verified': p.verified, 'is_demo': bool(p.checkin and p.checkin.is_demo),
         'place': {'id': p.place_id, 'name': p.place.name, 'category': p.place.category},
         'created_at': p.created_at,
     }
@@ -115,6 +118,8 @@ class CheckInView(APIView):
         except anticheat.Reject as r:
             return err(r.code, r.detail, r.status, **r.extra)
 
+        forgotten = not demo and place.is_forgotten                # počítá se před uložením tohoto razítka
+        trail = quests.trail_finished_by(user, place)               # výprava, kterou toto razítko dokončí
         ai_delta = ai_hooks.vision_trust_delta(data, place.category)
         trust = anticheat.trust_score(info['trust_penalty'], 0 if demo else accuracy, ai_delta)
         verified = trust >= 50 and not demo
@@ -125,12 +130,15 @@ class CheckInView(APIView):
                     user=user, place=place, lat=lat, lon=lon, accuracy_m=accuracy, distance_m=distance,
                     photo=ContentFile(data, name=f'{uuid.uuid4().hex}.{ext}'), photo_sha256=info['sha256'],
                     photo_phash=info['phash'], exif_status=info['exif_status'], trust=trust,
-                    verified=verified, is_demo=demo)
-                spec = pets.generate(place.id, place.category, place.rarity, info['sha256'], user.id)
+                    verified=verified, is_demo=demo, forgotten=forgotten)
+                rarity = pets.next_rarity(place.rarity) if trail else place.rarity  # odměna za dokončenou výpravu
+                spec = pets.generate(place.id, place.category, rarity, info['sha256'], user.id)
                 pet = Pet.objects.create(owner=user, place=place, checkin=ci, verified=verified,
                                          lore=ai_hooks.generate_lore(spec, place), **spec)
                 profile = profile_of(user)
                 xp_gain = XP_BY_RARITY[place.rarity]
+                if forgotten:
+                    xp_gain = round(xp_gain * FORGOTTEN_XP_MULT)
                 daily = quests.daily_place()
                 if daily and daily.id == place.id:
                     xp_gain *= 2  # quest „Místo dne“
@@ -144,7 +152,9 @@ class CheckInView(APIView):
             return err('ALREADY_STAMPED', 'Toto místo už máš v Pasu.', 409)
         return Response({
             'checkin': checkin_json(ci), 'pet': pet_json(pet), 'xp_gain': xp_gain, 'level_up': level_up,
-            'level': profile.level, 'new_badges': [{'code': b.code, 'name': b.name, 'icon': b.icon} for b in new_badges],
+            'level': profile.level, 'forgotten': forgotten,
+            'trail_done': trail and {'id': trail['id'], 'stop': trail['stop']},
+            'new_badges': [{'code': b.code, 'name': b.name, 'icon': b.icon} for b in new_badges],
         }, status=201)
 
 
@@ -178,19 +188,90 @@ def pet_detail(request, pk):
     if request.method == 'PATCH':
         if p.owner_id != request.user.id:
             return err('FORBIDDEN', 'Tohle není tvůj PET.', 403)
-        name = str(request.data.get('name', '')).strip()
-        if not 1 <= len(name) <= 40:
-            return err('BAD_NAME', 'Jméno musí mít 1–40 znaků.')
-        p.name = name
-        p.save(update_fields=['name'])
+        if 'favorite' in request.data:
+            p.favorite = str(request.data['favorite']).lower() in ('1', 'true')
+        if 'name' in request.data:
+            name = str(request.data['name']).strip()
+            if not 1 <= len(name) <= 40:
+                return err('BAD_NAME', 'Jméno musí mít 1–40 znaků.')
+            p.name = name
+        p.save(update_fields=['name', 'favorite'])
     return Response(pet_json(p))
+
+
+MERGE_FIELDS = ('type', 'type2', 'species', 'rarity', 'seed', 'level', 'xp', 'stage', 'bonus_move', *pets.BASE_STATS)
+
+
+def _parents(request, data):
+    """Dva různí vlastní a zdraví tvorové ke šlechtění, nebo (None, chyba)."""
+    try:
+        ids = {int(data.get('a')), int(data.get('b'))}
+    except (TypeError, ValueError):
+        return None, err('BAD_REQUEST', 'Vyber dva tvory.')
+    found = list(Pet.objects.select_for_update().filter(pk__in=ids, owner=request.user).select_related('place'))
+    if len(ids) != 2 or len(found) != 2:
+        return None, err('BAD_PAIR', 'Vyber dva různé své tvory.')
+    if any(p.injured_until and p.injured_until > timezone.now() for p in found):
+        return None, err('PET_INJURED', 'Zraněný nebo vyčerpaný tvor se šlechtit nemůže.')
+    if abs(found[0].level - found[1].level) > pets.MERGE_MAX_LEVEL_GAP:
+        return None, err('LEVEL_GAP', f'Šlechtit jde jen tvory, jejichž level se liší nejvýš o {pets.MERGE_MAX_LEVEL_GAP}.')
+    return sorted(found, key=lambda p: p.pk), None
+
+
+def _as_dict(p):
+    return {k: getattr(p, k) for k in MERGE_FIELDS}
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def merge_preview(request):
+    """Šance před šlechtěním (?a=&b=)."""
+    with transaction.atomic():
+        found, error = _parents(request, request.GET)
+    if error:
+        return error
+    a, b = found
+    return Response({**pets.merge_odds(_as_dict(a), _as_dict(b)), 'pair': [a.id, b.id]})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def pet_merge(request):
+    """{a, b} → spojí dva tvory do jednoho, rodiče zmizí. Když se to nepovede, s šancí pets.MERGE_LOSS
+    zmizí oba rodiče, jinak zůstanou, ale 30 min jsou vyčerpaní."""
+    import random
+    with transaction.atomic():
+        found, error = _parents(request, request.data)
+        if error:
+            return error
+        a, b = found
+        rng = random.SystemRandom()
+        spec = pets.merge(_as_dict(a), _as_dict(b), rng)
+        if spec is None:
+            lost = rng.random() < pets.MERGE_LOSS
+            parents = Pet.objects.filter(pk__in=[a.id, b.id])
+            if lost:
+                parents.delete()
+            else:
+                parents.update(injured_until=timezone.now() + pets.INJURY)
+            return Response({'success': False, 'lost': lost, 'parents': [a.id, b.id]})
+        extra = {k: spec.pop(k) for k in ('new_ability', 'new_species', 'rarity_up', 'mutation')}
+        main = a if (a.level, a.xp) >= (b.level, b.xp) else b
+        child = Pet.objects.create(owner=request.user, place=main.place, checkin=None, verified=a.verified and b.verified,
+                                   favorite=a.favorite or b.favorite,
+                                   lore=f'Vyšlechtěn spojením tvorů {a.name} a {b.name}.', **spec)
+        a.delete()
+        b.delete()
+    return Response({'success': True, 'parents': [a.id, b.id], 'pet': pet_json(child),
+                     'new_ability': extra['new_ability'] and engine.MOVES[extra['new_ability']]['name'],
+                     'new_species': extra['new_species'], 'rarity_up': extra['rarity_up'], 'mutation': extra['mutation']})
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def pet_evolve(request, pk):
     with transaction.atomic():
-        p = get_object_or_404(Pet.objects.select_for_update().select_related('place', 'checkin'), pk=pk, owner=request.user)
+        p = get_object_or_404(Pet.objects.select_for_update(of=('self',)).select_related('place', 'checkin'), pk=pk, owner=request.user)
         if not pets.can_evolve(p):
             need = pets.EVOLVE_LEVEL.get(p.stage + 1)
             return err('CANNOT_EVOLVE', f'Evoluce je možná od levelu {need}.' if need else 'Tvor je už plně vyvinutý.')
@@ -205,12 +286,87 @@ def badge_list(request):
     return Response([badge_json(b, request.user) for b in Badge.objects.order_by('id')])
 
 
+def top_pet(user):
+    p = user.pets.order_by('-level', '-stage', '-xp').first()
+    return p and {'name': p.name, 'type': p.type, 'seed': p.seed, 'stage': p.stage, 'rarity': p.rarity, 'level': p.level}
+
+
+def person_json(user):
+    prof = profile_of(user)
+    return {'nickname': prof.nickname, 'level': prof.level, 'rating': rating.refresh(user), 'top_pet': top_pet(user)}
+
+
+def friendship_between(a, b):
+    return Friendship.objects.filter(Q(from_user=a, to_user=b) | Q(from_user=b, to_user=a)).first()
+
+
+def are_friends(a, b):
+    f = friendship_between(a, b)
+    return bool(f and f.accepted)
+
+
+def friendship_json(f, me):
+    if not f:
+        return {'id': None, 'state': 'none'}
+    state = 'friends' if f.accepted else 'outgoing' if f.from_user_id == me.id else 'incoming'
+    return {'id': f.id, 'state': state}
+
+
+def friends_payload(me):
+    out = {'friends': [], 'incoming': [], 'outgoing': []}
+    for f in Friendship.objects.filter(Q(from_user=me) | Q(to_user=me)).select_related('from_user', 'to_user').order_by('-created_at'):
+        other = f.to_user if f.from_user_id == me.id else f.from_user
+        out[friendship_json(f, me)['state']].append({'id': f.id, **person_json(other)})
+    return out
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def friends(request):
+    """GET → přátelé a žádosti, POST {nickname} → poslat žádost (když už protistrana žádala, rovnou přátelé)."""
+    me = request.user
+    if request.method == 'POST':
+        other = Profile.objects.filter(nickname__iexact=str(request.data.get('nickname', '')).strip()).first()
+        if not other:
+            return err('NOT_FOUND', 'Hráč s touto přezdívkou neexistuje.', 404)
+        if other.user_id == me.id:
+            return err('SELF', 'Sám sebe si do přátel nepřidáš.')
+        f = friendship_between(me, other.user)
+        if f is None:
+            Friendship.objects.get_or_create(from_user=me, to_user=other.user)
+        elif not f.accepted and f.to_user_id == me.id:
+            f.accepted = True
+            f.save(update_fields=['accepted'])
+    return Response(friends_payload(me))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def friend_accept(request, pk):
+    f = get_object_or_404(Friendship, pk=pk, to_user=request.user)
+    f.accepted = True
+    f.save(update_fields=['accepted'])
+    return Response(friends_payload(request.user))
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def friend_remove(request, pk):
+    """Odmítnout žádost, zrušit svou žádost nebo odebrat přítele."""
+    get_object_or_404(Friendship.objects.filter(Q(from_user=request.user) | Q(to_user=request.user)), pk=pk).delete()
+    return Response(friends_payload(request.user))
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def public_profile(request, nickname):
     prof = get_object_or_404(Profile.objects.select_related('user'), nickname=nickname)
     u = prof.user
+    me = request.user if request.user.is_authenticated and request.user.id != u.id else None
     return Response({
+        'friendship': me and friendship_json(friendship_between(me, u), me),
+        'friends_count': Friendship.objects.filter(Q(from_user=u) | Q(to_user=u), accepted=True).count(),
+        'rating': rating.refresh(u), 'top_pet': top_pet(u),
         'nickname': prof.nickname, 'level': prof.level, 'xp': prof.xp, 'school': prof.school, 'wins': prof.wins,
         'team': prof.team.name if prof.team else None,
         'stamps': u.checkins.filter(is_demo=False).count(),
@@ -255,9 +411,26 @@ def quest_list(request):
     return Response(quests.quests_for(request.user))
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def trail_list(request):
+    return Response(quests.trails_for(request.user))
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def food_pass(request):
+    return Response(quests.food_pass(request.user))
+
+
 def team_json(t):
+    # týdenní výzva: každý člen přispěje třemi razítky (jako osobní quest), počítá se jen od pondělí a bez demo
+    week = dict(CheckIn.objects.filter(user__profile__team=t, is_demo=False, created_at__date__gte=quests.week_start())
+                .order_by().values_list('user__profile__nickname').annotate(n=Count('id')))
+    members = list(t.members.order_by('-xp'))
     return {'name': t.name, 'join_code': t.join_code, 'owner': profile_of(t.owner).nickname,
-            'members': [{'nickname': p.nickname, 'level': p.level} for p in t.members.order_by('-xp')]}
+            'members': [{'nickname': p.nickname, 'level': p.level, 'week': week.get(p.nickname, 0)} for p in members],
+            'challenge': {'progress': sum(week.values()), 'target': 3 * len(members)}}
 
 
 @api_view(['GET', 'POST'])

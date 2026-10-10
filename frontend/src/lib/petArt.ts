@@ -12,6 +12,7 @@ export interface PetLook {
   rarity?: Rarity;
   back?: boolean; // pohled zezadu (tvůj tvor v aréně)
   shadow?: boolean;
+  type2?: PetType | ''; // kříženec: ocas, doplňky a druhá barva těla z druhého typu
 }
 
 const TYPE_LOOK: Record<PetType, { hue: number; accent: string; glow: string }> = {
@@ -90,14 +91,15 @@ function crest(type: PetType, x: number, y: number, s: number, stage: number, c:
 
 interface Colors { base: string; dark: string; light: string; belly: string; ink: string; accent: string; glow: string; cheek: string }
 
-export function petSvg({ type, seed, stage = 1, rarity = 'common', back = false, shadow = true }: PetLook): string {
+export function petSvg({ type, seed, stage = 1, rarity = 'common', back = false, shadow = true, type2 = '' }: PetLook): string {
+  const T2 = type2 && type2 !== type ? TYPE_LOOK[type2] : null;
   const r = rng(seed, stage * 7 + 1);
   const L = TYPE_LOOK[type];
   const hue = (L.hue + Math.round((r() - 0.5) * 28) + 360) % 360;
   const sat = 52 + Math.round(r() * 16);
   const c: Colors = {
     base: `hsl(${hue} ${sat}% 56%)`, dark: `hsl(${hue} ${sat}% 34%)`, light: `hsl(${hue} ${sat + 10}% 78%)`,
-    belly: `hsl(${(hue + 25) % 360} 70% 90%)`, ink: `hsl(${hue} 45% 16%)`, accent: L.accent, glow: L.glow,
+    belly: `hsl(${(hue + 25) % 360} 70% 90%)`, ink: `hsl(${hue} 45% 16%)`, accent: T2?.accent ?? L.accent, glow: L.glow,
     cheek: `hsl(${(hue + 330) % 360} 85% 72%)`,
   };
   // Stavba těla a doplňky se losují jednou pro tvora (salt bez stupně), aby evoluce zůstala „tím samým“ tvorem.
@@ -127,6 +129,7 @@ export function petSvg({ type, seed, stage = 1, rarity = 'common', back = false,
     <radialGradient id="eye" cx="40%" cy="35%"><stop offset="0" stop-color="${stage >= 3 ? c.glow : '#3b3b4f'}"/><stop offset="1" stop-color="${stage >= 3 ? c.dark : '#0b0b14'}"/></radialGradient>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
     <clipPath id="clipBody"><path d="${blob(body.cx, body.cy, body.rx, body.top, body.bottom)}"/></clipPath>
+    <linearGradient id="hy" x1="0" y1="0" x2="1" y2="1"><stop offset=".35" stop-color="hsl(${T2?.hue ?? 0} 70% 55%)" stop-opacity="0"/><stop offset=".75" stop-color="hsl(${T2?.hue ?? 0} 70% 55%)" stop-opacity=".75"/></linearGradient>
     <clipPath id="clipHead"><path d="${blob(head.cx, head.cy, head.rx, head.top, head.bottom)}"/></clipPath>
   </defs>`;
 
@@ -155,7 +158,7 @@ export function petSvg({ type, seed, stage = 1, rarity = 'common', back = false,
     const x = back ? body.cx + 6 : body.cx + body.rx * 0.75, y = back ? body.cy + body.bottom * 0.55 : body.cy + body.bottom * 0.35;
     const s = 0.8 + stage * 0.2;
     const tt = (inner: string) => `<g transform="translate(${x} ${y}) scale(${back ? -s : s} ${s})">${inner}</g>`;
-    switch (type) {
+    switch ((type2 || type) as PetType) {
       case 'fortress': return tt(`<path d="M0,0C14,-2 22,-12 26,-22" stroke="${c.dark}" stroke-width="9" stroke-linecap="round" fill="none"/><circle cx="28" cy="-26" r="11" fill="${c.accent}" ${o}/>`);
       case 'view': return tt(`<path d="M0,0C16,-6 30,-26 36,-40C28,-30 14,-26 6,-22Z" fill="${c.light}" ${o}/>`);
       case 'nature': return tt(`<path d="M0,0C10,-10 24,-14 30,-30C34,-18 28,-2 12,4Z" fill="${c.accent}" ${o}/><path d="M6,-2C14,-8 22,-14 28,-26" stroke="#3f6212" stroke-width="2" fill="none"/>`);
@@ -197,6 +200,7 @@ export function petSvg({ type, seed, stage = 1, rarity = 'common', back = false,
   parts.push(`<path d="${blob(body.cx, body.cy, body.rx, body.top, body.bottom)}" fill="url(#g)" ${o}/>`);
   if (!back) parts.push(`<g clip-path="url(#clipBody)"><ellipse cx="${body.cx}" cy="${body.cy + body.bottom * 0.45}" rx="${body.rx * 0.62}" ry="${body.bottom * 0.75}" fill="url(#gb)" opacity=".95"/></g>`);
   parts.push(patternOn('clipBody', body));
+  if (T2) parts.push(`<path d="${blob(body.cx, body.cy, body.rx, body.top, body.bottom)}" fill="url(#hy)"/>`); // dvoubarevný kříženec
   parts.push(`<g clip-path="url(#clipBody)"><ellipse cx="${body.cx + body.rx * 0.3}" cy="${body.cy + body.bottom}" rx="${body.rx}" ry="${body.bottom * 0.45}" fill="#000" opacity=".16"/></g>`);
   // Ručky
   const armY = headed ? body.cy - 4 : body.cy + 10;

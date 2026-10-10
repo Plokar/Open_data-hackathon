@@ -5,6 +5,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { PlaceFeature } from '@/lib/api';
 import { CATEGORY } from '@/lib/game';
+import { KRAJ } from './kraj';
+
+/** Stejný limit jako anticheat.check_position na backendu. */
+const REACH_M = 300;
 
 interface Props {
   features: PlaceFeature[];
@@ -12,7 +16,17 @@ interface Props {
   onSelect: (f: PlaceFeature) => void;
   onLocate?: (lat: number, lon: number) => void;
   centerOnMe?: number; // změna hodnoty = vycentrovat na mou polohu
+  bosses?: { id: number; lat: number; lon: number; name: string; defeated: boolean }[];
+  onBoss?: (placeId: number) => void;
 }
+
+/** Boss: pulzující korunka nad místem (styly .boss-* v globals.css). */
+const bossIcon = (defeated: boolean) => L.divIcon({
+  className: 'boss-icon',
+  iconSize: [44, 44],
+  iconAnchor: [22, 22],
+  html: `<span class="boss-ring${defeated ? ' boss-done' : ''}"></span><span class="boss-pin${defeated ? ' boss-done' : ''}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5z" fill="#fde047" stroke="#7c2d12" stroke-width="1.6" stroke-linejoin="round"/></svg></span>`,
+});
 
 /** Poloha hráče: špendlík s turistickou značkou, ať se neplete s kolečky míst. Styly v globals.css (.me-*). */
 const ME_ICON = L.divIcon({
@@ -24,33 +38,47 @@ const ME_ICON = L.divIcon({
     <rect x="8.5" y="11.5" width="19" height="13" rx="2" fill="#fbfcf8"/><rect x="8.5" y="15.8" width="19" height="4.4" fill="#c2362f"/></svg>`,
 });
 
-export default function PlacesMap({ features, stamped, onSelect, onLocate, centerOnMe }: Props) {
+export default function PlacesMap({ features, stamped, onSelect, onLocate, centerOnMe, bosses = [], onBoss }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
+  const bossLayer = useRef<L.LayerGroup | null>(null);
   const me = useRef<L.Marker | null>(null);
   const accuracy = useRef<L.Circle | null>(null);
-  const cb = useRef({ onSelect, onLocate });
+  const reach = useRef<L.Circle | null>(null);
+  const cb = useRef({ onSelect, onLocate, onBoss });
   useEffect(() => {
-    cb.current = { onSelect, onLocate };
+    cb.current = { onSelect, onLocate, onBoss };
   });
 
   useEffect(() => {
-    const m = L.map(el.current!, { center: [50.15, 12.7], zoom: 9, preferCanvas: true, zoomControl: false });
+    // Jen Karlovarský kraj: dál se neposune, dlaždice mimo něj se nestahují a zbytek světa zakryje maska
+    const kraj = L.latLngBounds(KRAJ).pad(0.08);
+    const m = L.map(el.current!, { maxBounds: kraj, maxBoundsViscosity: 1, preferCanvas: true, zoomControl: false });
+    // Na telefonu se celý kraj vejde až na zoomu 8 a je drobný, proto start na 9 a oddálit jde jen na celý kraj
+    m.setView(kraj.getCenter(), 9).setMinZoom(m.getBoundsZoom(kraj));
+    L.polygon([[[48, 10], [48, 16], [52, 16], [52, 10]], KRAJ], {
+      renderer: L.svg(), className: 'kraj-mask', interactive: false, color: '#2e6a47', weight: 2.5, fillOpacity: 1,
+    }).addTo(m);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
+      bounds: kraj,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · data © DATA ZÁPAD (CC0)',
     }).addTo(m);
     // ponytail: bez +/- tlačítek, na telefonu se zoomuje prsty a na desktopu kolečkem
     layer.current = L.layerGroup().addTo(m);
+    bossLayer.current = L.layerGroup().addTo(m);
     m.on('locationfound', (e: L.LocationEvent) => {
       const ll = e.latlng;
       if (!me.current) {
+        // ponytail: Leaflet kreslí kruh v projekci, na 300 m je to přesné dost
+        reach.current = L.circle(ll, { radius: REACH_M, color: '#2e6a47', weight: 2, dashArray: '6 6', fillColor: '#2e6a47', fillOpacity: 0.07, interactive: false }).addTo(m);
         accuracy.current = L.circle(ll, { radius: e.accuracy, color: '#2f6fa8', weight: 1, fillOpacity: 0.08, interactive: false }).addTo(m);
         me.current = L.marker(ll, { icon: ME_ICON, zIndexOffset: 1000, keyboard: false, title: 'Tady jsi' }).addTo(m);
       } else {
         me.current.setLatLng(ll);
         accuracy.current?.setLatLng(ll).setRadius(e.accuracy);
+        reach.current?.setLatLng(ll);
       }
       cb.current.onLocate?.(ll.lat, ll.lng);
     });
@@ -61,6 +89,7 @@ export default function PlacesMap({ features, stamped, onSelect, onLocate, cente
       m.remove();
       me.current = null;
       accuracy.current = null;
+      reach.current = null;
     };
   }, []);
 
@@ -83,6 +112,18 @@ export default function PlacesMap({ features, stamped, onSelect, onLocate, cente
         .addTo(g);
     }
   }, [features, stamped]);
+
+  useEffect(() => {
+    const g = bossLayer.current;
+    if (!g) return;
+    g.clearLayers();
+    for (const b of bosses) {
+      L.marker([b.lat, b.lon], { icon: bossIcon(b.defeated), zIndexOffset: 900, title: `Boss: ${b.name}` })
+        .bindTooltip(`👑 ${b.name}`)
+        .on('click', () => cb.current.onBoss?.(b.id))
+        .addTo(g);
+    }
+  }, [bosses]);
 
   useEffect(() => {
     if (centerOnMe && me.current && map.current) map.current.setView(me.current.getLatLng(), 14);

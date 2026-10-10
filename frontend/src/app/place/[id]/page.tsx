@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, Bus, Camera, Croissant, ExternalLink, MapPin, Stamp } from 'lucide-react';
+import { AlertTriangle, Bus, Camera, Croissant, ExternalLink, MapPin, Stamp, Waves } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PetArt, PetCard } from '@/components/pet/PetCard';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,8 @@ import { Guide } from '@/components/guide/Guide';
 import { PlaceAbout, PlacePhoto } from '@/components/place/PlacePhoto';
 import { useAuth } from '@/contexts/AuthContext';
 import { errorMessage, gameApi, type CheckInResult, type PlaceDetail } from '@/lib/api';
-import { CATEGORY, RARITY, formatDistance } from '@/lib/game';
+import { CATEGORY, RARITY, formatDistance, position } from '@/lib/game';
+import { BossPanel } from '@/components/battle/BossPanel';
 import { cn } from '@/lib/utils';
 
 /** Zmenší fotku na max. 1600 px (rychlost na mobilu). Když to prohlížeč neumí, pošle originál. */
@@ -27,15 +28,6 @@ async function resize(file: File, max = 1600): Promise<Blob> {
   } catch {
     return file;
   }
-}
-
-function position(): Promise<GeolocationPosition> {
-  return new Promise((res, rej) => {
-    if (!navigator.geolocation) return rej(new Error('Prohlížeč neumí zjistit polohu.'));
-    navigator.geolocation.getCurrentPosition(res, () => rej(new Error('Povol přístup k poloze (a použij HTTPS).')), {
-      enableHighAccuracy: true, timeout: 20000, maximumAge: 0,
-    });
-  });
 }
 
 export default function PlacePage() {
@@ -75,7 +67,8 @@ export default function PlacePage() {
       if (demo.current) form.append('demo', '1');
       const r = await gameApi.checkIn(form);
       setResult(r);
-      setPlace({ ...place, stamped: true, stamp_count: place.stamp_count + 1, my_pet: r.pet });
+      setPlace({ ...place, stamped: true, stamp_count: place.stamp_count + 1, my_pet: r.pet, forgotten: false,
+        food_kinds: place.food_kinds?.map((k) => ({ ...k, tasted: true })) });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -98,6 +91,9 @@ export default function PlacePage() {
         <span className={cn('rounded-full px-2.5 py-0.5 font-semibold', RARITY[place.rarity].className)}>{RARITY[place.rarity].label}</span>
         <span className="rounded-full bg-muted px-2.5 py-0.5">{place.stamp_count === 0 ? 'Zatím tu nikdo nezískal tvora' : `Tvorů odsud: ${place.stamp_count}`}</span>
         {place.stamped && <span className="rounded-full bg-trail-yellow/30 px-2.5 py-0.5 font-semibold">V Pasu</span>}
+        {place.forgotten && !place.stamped && !place.is_hazardous && (
+          <span className="rounded-full bg-trail-green/20 px-2.5 py-0.5 font-semibold">Málo navštěvované, ×1,5 XP</span>
+        )}
       </div>
 
       {place.is_hazardous && (
@@ -107,7 +103,19 @@ export default function PlacePage() {
         </div>
       )}
 
+      <BossPanel placeId={place.id} />
+
       <div className="mt-4"><PlaceAbout place={place} /></div>
+
+      {place.extra.swim && (
+        <div className="mt-4 rounded-2xl border border-border bg-card p-4 text-sm">
+          <div className="flex items-center gap-2 font-semibold"><Waves className="h-4 w-4 text-trail-blue" aria-hidden />Koupací místo pod dohledem hygieniků</div>
+          {place.extra.swim.spec && <p className="mt-1">{place.extra.swim.spec}.</p>}
+          {place.extra.swim.amenities && <p className="mt-1 text-muted-foreground">Vybavení: {place.extra.swim.amenities}</p>}
+          <p className="mt-1 text-muted-foreground">Data kraje změřenou kvalitu vody neobsahují. Aktuální výsledky vždy zveřejňuje hygienická stanice.</p>
+          {place.url && <a className="mt-2 inline-block font-semibold text-primary underline" href={place.url} target="_blank" rel="noreferrer">Kvalita vody na webu KHS</a>}
+        </div>
+      )}
 
       {!!place.extra.products?.length && (
         <div className="mt-4 rounded-2xl border border-border bg-card p-4 text-sm">
@@ -115,6 +123,12 @@ export default function PlacePage() {
           <ul className="mt-1 list-disc pl-5">
             {place.extra.products.map((p, i) => <li key={i}>{p.name} <span className="text-muted-foreground">({p.category}, {p.year})</span></li>)}
           </ul>
+          {!!place.food_kinds?.length && (
+            <p className="mt-2 text-muted-foreground">
+              {place.stamped ? 'V Dobrotovém pasu ti odsud patří: ' : 'Razítko odemkne v Dobrotovém pasu: '}
+              {place.food_kinds.map((k) => (k.tasted && !place.stamped ? `${k.name} (už máš)` : k.name)).join(', ')}.
+            </p>
+          )}
         </div>
       )}
 
@@ -126,7 +140,7 @@ export default function PlacePage() {
           href={`https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=16/${place.lat}/${place.lon}`}>
           <MapPin className="h-5 w-5" aria-hidden /> Navigovat v mapě
         </a>
-        {place.url && <a className="flex items-center gap-3 font-semibold text-primary underline" href={place.url} target="_blank" rel="noreferrer"><ExternalLink className="h-5 w-5" aria-hidden /> Web místa</a>}
+        {place.url && !place.extra.swim && <a className="flex items-center gap-3 font-semibold text-primary underline" href={place.url} target="_blank" rel="noreferrer"><ExternalLink className="h-5 w-5" aria-hidden /> Web místa</a>}
       </div>
 
       <div className="mt-8">
@@ -172,8 +186,14 @@ export default function PlacePage() {
               <div>
                 <div className="text-xl font-extrabold">Razítko je tvoje</div>
                 <div className="text-sm text-muted-foreground">+{result.xp_gain} XP{result.level_up && `, nová úroveň ${result.level}`}</div>
+                {result.forgotten && <div className="text-sm font-semibold text-trail-green">Málo navštěvované místo, bonus ×1,5 XP</div>}
               </div>
             </div>
+            {result.trail_done && (
+              <div className="mt-3 rounded-2xl bg-trail-green/15 p-3 text-center text-sm font-semibold">
+                Dokončil jsi výpravu z {result.trail_done.stop}. Tvor je o stupeň vzácnější.
+              </div>
+            )}
             <div className="mb-2 mt-4 font-hand text-xl text-primary">A tady je tvůj nový tvor:</div>
             <PetCard pet={result.pet} />
             {result.new_badges.length > 0 && (

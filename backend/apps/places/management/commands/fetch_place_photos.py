@@ -13,7 +13,9 @@ def fetch(p: Place, out: Path):
     wiki, photo = photos.lookup(p.name, p.lat, p.lon, p.category)
     if photo:
         ext = '.png' if photo['thumb'].lower().endswith('.png') else '.jpg'
-        photos.download(photo['thumb'], out / f'{p.id}{ext}')
+        path = out / f'{p.id}{ext}'
+        if not path.exists():  # soubor z dřívějška stačí, dotaz jde jen pro autora a licenci
+            photos.download(photo['thumb'], path)
         photo['url'] = f'{settings.MEDIA_URL}places/{p.id}{ext}'
     return wiki, photo
 

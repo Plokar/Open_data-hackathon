@@ -45,7 +45,7 @@ class BattleConsumer(AsyncJsonWebsocketConsumer):
             await self._push(await self._load())
         elif kind == 'move':
             ok = await database_sync_to_async(service.submit_move)(
-                self.battle_id, self.scope['user'].id, content.get('turn'), content.get('move'))
+                self.battle_id, self.scope['user'].id, content.get('turn'), content.get('move'), content.get('target'))
             if ok:
                 await self.channel_layer.group_send(group(self.battle_id), {'type': 'battle.update'})
 

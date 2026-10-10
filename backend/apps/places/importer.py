@@ -86,6 +86,10 @@ def parse_layer(rows, category, label, item, layer, rarity, hazardous):
         name = get(row, 'name')
         oid = get(row, 'oid') or str(i + 1)
         extra = {}
+        if label.startswith('Koupací'):
+            # Vrstva nenese změřenou kvalitu vody (ta je jen na webu KHS, odkaz je v `url`), jen druh místa a vybavení.
+            extra = {'swim': {'spec': (row.get(_find(rows[0].keys(), r'^specifikace_místa$')) or '').strip(),
+                              'amenities': (row.get(_find(rows[0].keys(), r'^vybavenost$')) or '').strip()}}
         if category == 'food':
             # Vrstva Dobrot je po produktech – místo ke sbírání je provozovna výrobce.
             producer = (row.get(_find(rows[0].keys(), r'^výrobce$')) or name).strip()

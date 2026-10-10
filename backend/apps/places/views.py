@@ -1,5 +1,8 @@
+import csv
+
 from django.core.cache import cache
 from django.db.models import Count, Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -45,6 +48,11 @@ def place_detail(request, pk):
                                'stage': mine.stage, 'rarity': mine.rarity, 'level': mine.level}
     # Detail místa počítá i demo razítka (jinak po demo claimu svítí „nikdo tu nebyl“); žebříčky a statistiky kraje dál ne.
     data['stamp_count'] = p.checkins.count()
+    data['forgotten'] = p.is_forgotten  # bonus XP za málo navštěvované místo
+    if p.category == 'food':  # Dobrotový pas: druhy Dobrot tohoto výrobce a které hráč už ochutnal jinde
+        from apps.game import quests
+        tasted = {k['name'] for k in quests.food_pass(request.user) if k['tasted']}
+        data['food_kinds'] = [{'name': c, 'tasted': c in tasted} for c in sorted(quests.food_categories(p))]
     return Response(data)
 
 
@@ -63,9 +71,12 @@ def place_stats(request):
             .annotate(stamps=Count('checkins', filter=real), places=Count('id', distinct=True)).order_by('-stamps', field)
         ]
         totals = Place.objects.aggregate(stamps=Count('checkins', filter=real),
-                                         players=Count('checkins__user', filter=real, distinct=True))
+                                         players=Count('checkins__user', filter=real, distinct=True),
+                                         forgotten=Count('checkins', filter=real & Q(checkins__forgotten=True)))
         data = {
             'total_stamps': totals['stamps'], 'total_players': totals['players'],
+            # kolik razítek zamířilo na málo navštěvovaná místa (měřítko rozložení turismu po kraji)
+            'forgotten_stamps': totals['forgotten'],
             'top': [row(p) for p in qs.filter(stamps__gt=0).order_by('-stamps', 'name')[:10]],
             # nejméně navštěvovaná = tipy, kam vyrazit (rozložení turismu mimo centra)
             'least': [row(p) for p in qs.filter(is_hazardous=False).order_by('stamps', '?')[:10]],
@@ -76,3 +87,22 @@ def place_stats(request):
         }
         cache.set('place_stats', data, 60)
     return Response(data)
+
+
+CSV_MIN_COUNT = 5  # menší počty se v CSV neuvádějí, aby výstup byl agregát a ne stopa jednotlivce
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def place_stats_csv(request):
+    """Otevřená data zpět: návštěvnost míst jako CSV pod CC0 (PROJECT_SPEC 6.4). Bez identity hráčů a bez demo razítek."""
+    resp = HttpResponse(content_type='text/csv; charset=utf-8')
+    resp['Content-Disposition'] = 'attachment; filename="zapad-go-navstevnost.csv"'
+    resp.write('﻿')  # BOM, ať CSV v Excelu drží diakritiku
+    w = csv.writer(resp)
+    w.writerow(['id', 'nazev', 'kategorie', 'okres', 'obec', 'lat', 'lon', 'razitek', 'licence'])
+    qs = Place.objects.annotate(stamps=Count('checkins', filter=Q(checkins__is_demo=False))).order_by('id')
+    for p in qs:
+        shown = p.stamps if p.stamps >= CSV_MIN_COUNT or p.stamps == 0 else f'<{CSV_MIN_COUNT}'
+        w.writerow([p.id, p.name, p.category, p.okres, p.obec, p.lat, p.lon, shown, 'CC0'])
+    return resp

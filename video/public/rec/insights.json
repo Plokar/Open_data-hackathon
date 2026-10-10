@@ -1,0 +1,18 @@
+{
+ "file": "rec/insights.mp4",
+ "fps": 67.5,
+ "events": [
+  {
+   "name": "scroll",
+   "t": 1.455
+  },
+  {
+   "name": "bars",
+   "t": 3.463
+  },
+  {
+   "name": "lists",
+   "t": 6.67
+  }
+ ]
+}

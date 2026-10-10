@@ -223,3 +223,28 @@ Pokud se během zbývajících hodin objeví něco nového, vejde se sem (každ�
 - Video pustit **na začátku**, ne uprostřed: za 100 s se vytvoří nálada a pak mluvíte 3 min naživo a ukážete aplikaci.
 - Připravte **verzi bez hudby** (jen titulky) pro případ, že na místě nebude fungovat zvuk.
 - Připravte **15 s trailer** (scény 1.3 + 2.3 + 5.2 + 7.2 + 10.2) na sociální sítě a na úvodní slide.
+
+---
+
+## 9. Stav výroby (Remotion projekt `video/`)
+
+**Hotová verze: 1:20, s hudbou** (`public/Sovereign_of_the_High_Peak.mp3`, stříhaná na hranicích 4s frází: 0:02–1:08, 1:28–1:36, 1:40–konec). Drop skladby padne na začátek souboje, závěrečný vrchol na finále.
+
+Spuštění: `cd video && npm install`, `npm run studio` (náhled), `npm run render` (→ `out/zapad-go.mp4`). Časová osa a hudba: `src/Video.tsx`.
+
+| Čas | Scéna | Obsah | Zdroj |
+|---|---|---|---|
+| 0:00 | Úvod | dron nad krajem, zřícenina, hrad Loket, mlha | Videezy (Joe999), s uvedením zdroje |
+| 0:06 | Titulek | průvodci na doby, ZÁPAD GO na úder | komponenty aplikace |
+| 0:12 | Mapa | piny přibývají po kategoriích, přiblížení na Dianu, zastávka autobusu | záznam aplikace (`record-app.mjs map`) |
+| 0:18 | Razítko | turista zezadu s GPS cílem, fotka a ověření v aplikaci, razítko v Pasu | Mixkit + záznam aplikace (`checkin`) |
+| 0:25 | Zrození tvora | razítko praskne, místo + foto + hráč, rarita, evoluce | Remotion |
+| 0:34 | Typová věž | šipky na osminy, zoom na Pevnost → Výhled | Remotion |
+| 0:38 | Souboj (drop) | skutečný souboj Bára × Kuba, KO ve zpomalení | `record-battle.mjs` |
+| 0:50 | Postup | Pas, úkoly, odznaky, žebříček škol a týmů | záznam aplikace (`pass`, `leaderboard`) |
+| 0:58 | Dopad | co hráči objevují, místa se rozsvítí jako souhvězdí | záznam aplikace (`insights`) |
+| 1:06 | Finále (vrchol) | 617 míst kraje, průvodci, logo, QR na zapadgo-app.nervelabs.co.uk | data z DB |
+
+Přechody na sebe navazují (mlha, logo → telefon, průlet do displeje, najezd do razítka, záblesk, blesk na dropu, konfety, swipe v telefonu, souhvězdí).
+
+Přenahrání záznamů aplikace (lokální docker): `node scripts/record-app.mjs [map] [checkin] [pass] [leaderboard] [insights]` naplní demo svět (`scripts/world_setup.py`: hráči `demo_*`) a nahraje vybrané obrazovky. Úklid demo dat: `User.objects.filter(username__startswith='demo_').delete()`.

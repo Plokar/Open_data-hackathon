@@ -1,6 +1,7 @@
 /**
  * 2.5D bojová scéna (PixiJS v8 + pixi-filters + GSAP).
- * Soupeř stojí vzadu na menší plošině a je vidět zepředu, tvůj tvor vpředu zezadu, jako v Pokémonech.
+ * Soupeři stojí vzadu na menších plošinách a jsou vidět zepředu, ty (a spojenec ve 2v2) vpředu zezadu, jako v Pokémonech.
+ * Bojovníci jsou ve slotech a–d (1v1, všichni proti všem, 2v2, boss).
  * Každý tah má `fx` z backendu (engine.MOVES) a barvy podle živlu útočníka.
  * Scéna je čistě vizuální: stav boje drží server, sem jdou jen události tahu.
  */
@@ -12,7 +13,7 @@ import { petDataUrl } from './petArt';
 
 export const W = 480;
 export const H = 340;
-type Side = 'you' | 'opp';
+type Side = string; // slot a–d
 type Pt = { x: number; y: number };
 
 const ELEMENT: Record<PetType, { main: number; alt: number; hot: number; shape: Shape; sky: [string, string, string]; hills: [string, string, string] }> = {
@@ -183,7 +184,7 @@ class Particles {
 
 // ── Bojovník ─────────────────────────────────────────────────────────────────
 interface Fighter {
-  side: Side; info: BattleFighter; group: Container; sprite: Sprite; size: number; base: Pt;
+  side: Side; front: boolean; info: BattleFighter; group: Container; sprite: Sprite; size: number; base: Pt;
   overlay: ColorOverlayFilter; glow: GlowFilter; idle: gsap.core.Tween; el: (typeof ELEMENT)[PetType];
 }
 const center = (f: Fighter): Pt => ({ x: f.group.x + f.sprite.x, y: f.group.y + f.sprite.y - f.size * 0.4 });
@@ -191,7 +192,7 @@ const feet = (f: Fighter): Pt => ({ x: f.group.x + f.sprite.x, y: f.group.y + f.
 
 async function petTexture(info: BattleFighter, back: boolean) {
   const img = new Image();
-  img.src = petDataUrl({ type: info.type, seed: info.seed, stage: info.stage ?? 1, rarity: info.rarity ?? 'common', back, shadow: false });
+  img.src = petDataUrl({ type: info.type, type2: info.type2 || '', seed: info.seed, stage: info.stage ?? 1, rarity: info.rarity ?? 'common', back, shadow: false });
   await img.decode();
   return Texture.from(img);
 }
@@ -210,17 +211,17 @@ export class BattleScene {
   private texts = new Container();
   private tex!: Record<Shape, Texture>;
   private parts!: Particles;
-  private f!: Record<Side, Fighter>;
+  private f: Record<Side, Fighter> = {};
   private dead = false;
 
-  static async create(el: HTMLElement, you: BattleFighter, opp: BattleFighter) {
+  static async create(el: HTMLElement, fighters: BattleFighter[]) {
     const s = new BattleScene();
     await s.app.init({ width: W, height: H, antialias: true, backgroundAlpha: 0, resolution: Math.min(2, window.devicePixelRatio || 1), autoDensity: true });
     s.app.canvas.style.width = '100%';
     s.app.canvas.style.height = 'auto';
     s.app.canvas.style.display = 'block';
     el.appendChild(s.app.canvas);
-    await s.build(you, opp);
+    await s.build(fighters);
     return s;
   }
 
@@ -243,7 +244,7 @@ export class BattleScene {
   private fromTo = (t: gsap.TweenTarget, a: gsap.TweenVars, b: gsap.TweenVars) => this.keep(gsap.fromTo(t, a, b));
   private timeline = (v?: gsap.TimelineVars) => this.keep(gsap.timeline(v));
 
-  private async build(you: BattleFighter, opp: BattleFighter) {
+  private async build(list: BattleFighter[]) {
     this.tex = makeTextures();
     const stage = this.app.stage;
     stage.addChild(this.shake);
@@ -252,39 +253,57 @@ export class BattleScene {
     this.world.pivot.set(W / 2, H / 2);
     this.world.position.set(W / 2, H / 2);
 
-    const bg = new Sprite(drawBackground(opp.type, 50));
+    const front = [...list.filter((f) => f.me), ...list.filter((f) => f.ally && !f.me)];
+    const back = list.filter((f) => !f.ally && !f.me);
+    const bg = new Sprite(drawBackground((back[0] ?? list[0]).type, 50));
     bg.position.set(-50, -50);
     this.world.addChild(bg);
     this.dim.rect(-60, -60, W + 120, H + 120).fill(0x000010);
     this.dim.alpha = 0;
     this.world.addChild(this.dim);
 
-    const [ty, to] = await Promise.all([petTexture(you, true), petTexture(opp, false)]);
-    const mk = (side: Side, info: BattleFighter, t: Texture, x: number, y: number, size: number, prx: number): Fighter => {
+    const mk = (info: BattleFighter, isFront: boolean, t: Texture, x: number, y: number, size: number, prx: number): Fighter => {
       const group = new Container();
       group.position.set(x, y);
       const plat = new Graphics();
       plat.ellipse(0, 6, prx + 10, prx * 0.27 + 4).fill({ color: 0x000000, alpha: 0.25 });
-      plat.ellipse(0, 0, prx, prx * 0.26).fill(0x8fae6a).stroke({ color: 0x4f6b37, width: 3 });
-      plat.ellipse(0, -3, prx * 0.8, prx * 0.19).fill({ color: 0xc7dca0, alpha: 0.55 });
+      plat.ellipse(0, 0, prx, prx * 0.26).fill(info.boss ? 0x6b3b4f : 0x8fae6a).stroke({ color: info.boss ? 0x3a1d2a : 0x4f6b37, width: 3 });
+      plat.ellipse(0, -3, prx * 0.8, prx * 0.19).fill({ color: info.boss ? 0xff9a6b : 0xc7dca0, alpha: 0.55 });
       plat.ellipse(-prx * 0.3, -6, prx * 0.25, prx * 0.06).fill({ color: 0xffffff, alpha: 0.25 });
       group.addChild(plat);
+      const el = ELEMENT[info.type];
+      if (info.boss) {  // boss: pulzující aura za tělem
+        const aura = new Sprite(this.tex.soft);
+        aura.anchor.set(0.5); aura.tint = el.main; aura.blendMode = 'add'; aura.position.set(0, -size * 0.42); aura.scale.set(size / 30);
+        group.addChild(aura);
+        this.to(aura, { alpha: 0.35, duration: 0.9, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+      }
       const sprite = new Sprite(t);
       sprite.anchor.set(0.5, 0.93);
       sprite.width = sprite.height = size;
+      if (info.hp <= 0) sprite.alpha = 0;  // po reconnectu už padlý
       const overlay = new ColorOverlayFilter({ color: 0xffffff, alpha: 0 });
-      const el = ELEMENT[info.type];
       const glow = new GlowFilter({ distance: 14, outerStrength: 0, innerStrength: 0, color: el.main, quality: 0.2 });
       sprite.filters = [overlay, glow];
       group.addChild(sprite);
       const sc = sprite.scale.x;
       const idle = this.to(sprite.scale, { y: sc * 1.035, x: sc * 0.985, duration: rand(1.1, 1.5), yoyo: true, repeat: -1, ease: 'sine.inOut' });
-      return { side, info, group, sprite, size, base: { x, y }, overlay, glow, idle, el };
+      return { side: info.slot, front: isFront, info, group, sprite, size, base: { x, y }, overlay, glow, idle, el };
     };
-    const fo = mk('opp', opp, to, 340, 158, 150, 92);
-    const fy = mk('you', you, ty, 136, 318, 210, 128);
-    this.world.addChild(fo.group, fy.group);
-    this.f = { you: fy, opp: fo };
+    // Rozestavení: vzadu 1–2 soupeři (boss větší), vpředu ty a případně spojenec
+    const BACK = back.length === 1
+      ? [back[0].boss ? [345, 168, 196, 116] : [340, 158, 150, 92]]
+      : [[292, 150, 126, 78], [410, 178, 132, 80]];
+    const FRONT = front.length === 1 ? [[136, 318, 210, 128]]
+      : front.length === 2 ? [[112, 326, 190, 114], [258, 300, 156, 94]]
+      : [[96, 330, 176, 104], [222, 304, 144, 86], [340, 322, 140, 84]];  // parta tří na bosse
+    const texF = await Promise.all(front.map((f) => petTexture(f, true)));
+    const texB = await Promise.all(back.map((f) => petTexture(f, false)));
+    const fb = back.map((f, i) => mk(f, false, texB[i], ...(BACK[i] as [number, number, number, number])));
+    const ff = front.map((f, i) => mk(f, true, texF[i], ...(FRONT[i] as [number, number, number, number])));
+    // vzdálenější vzadu se kreslí první, ty úplně navrch
+    for (const f of [...fb, ...[...ff].reverse()]) this.world.addChild(f.group);
+    for (const f of [...fb, ...ff]) this.f[f.side] = f;
 
     this.fx.filterArea = this.app.screen;
     this.fx.filters = [new AdvancedBloomFilter({ threshold: 0.35, bloomScale: 1.25, brightness: 1.05, blur: 6, quality: 4 })];
@@ -293,12 +312,13 @@ export class BattleScene {
     this.parts = new Particles(this.fx, this.tex);
     this.app.ticker.add((t) => this.parts.update(Math.min(0.05, t.deltaMS / 1000)));
 
-    // vstup do arény
-    fo.group.x += 320; fy.group.x -= 320;
+    // vstup do arény: soupeři zprava, tvoje strana zleva
     const tl = this.timeline();
-    tl.to(fo.group, { x: fo.base.x, duration: 0.9, ease: 'power3.out' })
-      .to(fy.group, { x: fy.base.x, duration: 0.9, ease: 'power3.out' }, '<0.1')
-      .add(() => this.parts.emit(fo.base.x, fo.base.y - 10, { count: 14, shape: 'spark', colors: [fo.el.main, 0xffffff], speed: [40, 140], angle: [200, 340], scale: [0.15, 0.35] }));
+    for (const f of [...fb, ...ff]) {
+      f.group.x += f.front ? -320 : 320;
+      tl.to(f.group, { x: f.base.x, duration: 0.9, ease: 'power3.out' }, '<0.1');
+    }
+    for (const f of fb) tl.add(() => this.parts.emit(f.base.x, f.base.y - 10, { count: 14, shape: 'spark', colors: [f.el.main, 0xffffff], speed: [40, 140], angle: [200, 340], scale: [0.15, 0.35] }));
   }
 
   // ── Kamera a obrazovka ──
@@ -357,12 +377,12 @@ export class BattleScene {
   }
 
   private dodge(f: Fighter) {
-    const dir = f.side === 'opp' ? 1 : -1;
+    const dir = f.front ? -1 : 1;
     return this.timeline().to(f.sprite, { x: 34 * dir, duration: 0.12, ease: 'power2.out' }).to(f.sprite, { x: 0, duration: 0.3, ease: 'power2.inOut' }, '+=0.15');
   }
 
   private knock(f: Fighter, power: number) {
-    const dir = f.side === 'opp' ? 1 : -1;
+    const dir = f.front ? -1 : 1;
     this.timeline().to(f.sprite, { x: 16 * dir * power, rotation: 0.08 * dir * power, duration: 0.07 })
       .to(f.sprite, { x: 0, rotation: 0, duration: 0.45, ease: 'elastic.out(1, 0.4)' });
   }
@@ -407,7 +427,7 @@ export class BattleScene {
 
   private async projectile(a: Fighter, t: Fighter, color: number, hit: boolean, shape: Shape) {
     const from = center(a), to = center(t);
-    if (!hit) to.x += t.side === 'opp' ? 70 : -70;
+    if (!hit) to.x += t.front ? -70 : 70;
     const orb = new Container();
     orb.position.set(from.x, from.y); orb.scale.set(0.1);
     for (const [tint, sc] of [[color, 1], [0xffffff, 0.5]]) {
@@ -486,7 +506,7 @@ export class BattleScene {
 
   private async bolt(t: Fighter, color: number, hit: boolean) {
     const to = center(t);
-    if (!hit) to.x += t.side === 'opp' ? 80 : -80;
+    if (!hit) to.x += t.front ? -80 : 80;
     await this.to(this.dim, { alpha: 0.55, duration: 0.3 });
     const g = new Graphics();
     g.blendMode = 'add';
@@ -577,7 +597,7 @@ export class BattleScene {
 
   private async geyser(t: Fighter, color: number, hit: boolean) {
     const base = feet(t);
-    if (!hit) base.x += t.side === 'opp' ? 70 : -70;
+    if (!hit) base.x += t.front ? -70 : 70;
     const crack = new Graphics().ellipse(0, 0, 50, 13).fill({ color: 0x0b1d2a, alpha: 0.7 });
     crack.position.set(base.x, base.y); crack.scale.set(0.1);
     this.fx.addChild(crack);
@@ -663,7 +683,10 @@ export class BattleScene {
   }
 
   private async playEvent(e: TurnEvent, hp: Record<Side, number>, hooks: Hooks) {
-    const A = this.f[e.actor], T = this.f[e.actor === 'you' ? 'opp' : 'you'];
+    const A = this.f[e.actor];
+    // cíl z události, jinak první soupeř (ve 2v2 / ffa se neútočí na spojence)
+    const T = this.f[e.target ?? ''] ?? Object.values(this.f).find((f) => f.front !== A?.front && f.side !== A?.side);
+    if (!A || !T) return;
     const el = A.el, phys = e.kind === 'phys';
     const color = phys ? 0xffffff : el.main;
     hooks.say(`${A.info.name} použil ${e.name}!`);
