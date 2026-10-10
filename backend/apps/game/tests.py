@@ -10,6 +10,7 @@ from PIL import Image
 from apps.places.models import Place
 
 from . import anticheat, pets
+from .badges import BADGE_XP
 
 PLACE = SimpleNamespace(lat=50.0794, lon=12.3706)  # Chebský hrad
 
@@ -84,7 +85,8 @@ def test_checkin_flow(api_client):
     from .quests import daily_place_for
     # první razítko na nenavštíveném místě je „zapomenuté“: ×1,5 XP
     assert r.data['forgotten'] is True and r.data['trail_done'] is None
-    assert r.data['xp_gain'] == round(75 * 1.5) * (2 if daily_place_for(r.wsgi_request.user)[0] == p1 else 1)
+    assert r.data['xp_gain'] == (round(75 * 1.5) * (2 if daily_place_for(r.wsgi_request.user)[0] == p1 else 1)
+                                 + BADGE_XP * len(r.data['new_badges']))
     assert [b['code'] for b in r.data['new_badges']] == ['first']
 
     r = api_client.post('/api/checkins/', {'place': p1.id, 'lat': PLACE.lat, 'lon': PLACE.lon, 'accuracy': 10,

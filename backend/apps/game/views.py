@@ -37,16 +37,19 @@ def profile_of(user):
 
 def pet_json(p):
     injured = p.injured_until if p.injured_until and p.injured_until > timezone.now() else None
+    stats = pets.effective_stats(p)
     return {
         'id': p.id, 'name': p.name, 'species': p.species, 'type': p.type, 'rarity': p.rarity,
         'hp': p.hp, 'atk': p.atk, 'defense': p.defense, 'spd': p.spd, 'mag': p.mag, 'stamina': p.stamina,
         # ponytail: bez bonusu za razítka stejného typu (to by byl dotaz na každého PETa), ten se přičte až v boji
-        'stats': pets.effective_stats(p),
+        'stats': stats,
         'level': p.level, 'xp': p.xp, 'xp_level': pets.xp_for_level(p.level),
         'xp_next': pets.xp_for_level(p.level + 1) if p.level < pets.MAX_LEVEL else None,
         'stage': p.stage, 'stage_label': pets.STAGES[p.stage][0], 'can_evolve': pets.can_evolve(p),
         'evolve_level': pets.EVOLVE_LEVEL.get(p.stage + 1), 'injured_until': injured,
-        'moves': [{'id': m, **engine.MOVES[m], 'bred': m in engine.BRED, 'type': p.type2 if m in engine.MAGIC.get(p.type2, ()) else p.type}
+        'moves': [{'id': m, **engine.MOVES[m], 'bred': m in engine.BRED, 'damage': engine.mirror_damage(stats, m, pets.growth(p.level, p.stage)),
+                   'in_row': engine.casts_in_row(stats['stamina'], m),
+                   'type': p.type2 if m in engine.MAGIC.get(p.type2, ()) else p.type}
                   for m in engine.moves_for(p.type, p.stage, p.type2, p.bonus_move)],
         'type2': p.type2, 'bonus_move': p.bonus_move, 'favorite': p.favorite,
         'seed': p.seed, 'lore': p.lore, 'verified': p.verified, 'is_demo': bool(p.checkin and p.checkin.is_demo),
@@ -124,6 +127,9 @@ class CheckInView(APIView):
         trust = anticheat.trust_score(info['trust_penalty'], 0 if demo else accuracy, ai_delta)
         verified = trust >= 50 and not demo
         ext = photo.name.rsplit('.', 1)[-1].lower()[:4] if '.' in photo.name else 'jpg'
+        rarity = pets.next_rarity(place.rarity) if trail else place.rarity  # odměna za dokončenou výpravu
+        spec = pets.generate(place.id, place.category, rarity, info['sha256'], user.id)
+        lore = ai_hooks.generate_lore(spec, place)  # AI (síť) mimo transakci, ať nedrží zámky v DB
         try:
             with transaction.atomic():
                 ci = CheckIn.objects.create(
@@ -131,10 +137,7 @@ class CheckInView(APIView):
                     photo=ContentFile(data, name=f'{uuid.uuid4().hex}.{ext}'), photo_sha256=info['sha256'],
                     photo_phash=info['phash'], exif_status=info['exif_status'], trust=trust,
                     verified=verified, is_demo=demo, forgotten=forgotten)
-                rarity = pets.next_rarity(place.rarity) if trail else place.rarity  # odměna za dokončenou výpravu
-                spec = pets.generate(place.id, place.category, rarity, info['sha256'], user.id)
-                pet = Pet.objects.create(owner=user, place=place, checkin=ci, verified=verified,
-                                         lore=ai_hooks.generate_lore(spec, place), **spec)
+                pet = Pet.objects.create(owner=user, place=place, checkin=ci, verified=verified, lore=lore, **spec)
                 profile = profile_of(user)
                 xp_gain = XP_BY_RARITY[place.rarity]
                 if forgotten:
@@ -145,9 +148,10 @@ class CheckInView(APIView):
                 # quest „3 místa tento týden“ – razítka jsou unikátní, takže == 3 nastane jednou za týden
                 if CheckIn.objects.filter(user=user, created_at__date__gte=quests.week_start()).count() == 3:
                     xp_gain += 100
+                new_badges = badges.evaluate(user)
+                xp_gain += badges.BADGE_XP * len(new_badges)
                 level_up = profile.add_xp(xp_gain)
                 profile.save()
-                new_badges = badges.evaluate(user)
         except IntegrityError:
             return err('ALREADY_STAMPED', 'Toto místo už máš v Pasu.', 409)
         return Response({
@@ -281,6 +285,25 @@ def pet_evolve(request, pk):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def pet_dex(request):
+    """Tvor-diář: všechny druhy z pets.SPECIES. U objevených počet a nejlepší kus hráče, neobjevené jsou skryté."""
+    mine = {}
+    for p in request.user.pets.all():
+        mine.setdefault(p.species, []).append(p)
+
+    def best(ps):
+        b = max(ps, key=lambda p: (pets.RANK.index(p.rarity), p.stage, p.level))
+        return {'id': b.id, 'name': b.name, 'seed': b.seed, 'stage': b.stage, 'rarity': b.rarity, 'type2': b.type2}
+
+    return Response([
+        {'type': t, 'species': s if s in mine else None, 'count': len(mine.get(s, [])),
+         'where': [c for c, ct in pets.CATEGORY_TYPE.items() if ct == t],
+         'pet': best(mine[s]) if s in mine else None}
+        for t, names in pets.SPECIES.items() for s in names])
+
+
+@api_view(['GET'])
 @permission_classes([AllowAny])
 def badge_list(request):
     return Response([badge_json(b, request.user) for b in Badge.objects.order_by('id')])
@@ -363,7 +386,11 @@ def public_profile(request, nickname):
     prof = get_object_or_404(Profile.objects.select_related('user'), nickname=nickname)
     u = prof.user
     me = request.user if request.user.is_authenticated and request.user.id != u.id else None
+    # Vzpomínky (fotky z razítek): stejné pravidlo jako checkin_photo, vlastník vždy, ostatní přihlášení jen při photo_public
+    show_photos = request.user.is_authenticated and (me is None or prof.photo_public)
+    memories = u.checkins.exclude(photo='').select_related('place') if show_photos else []
     return Response({
+        'memories': [{'id': c.id, 'created_at': c.created_at, 'place': {'id': c.place_id, 'name': c.place.name}} for c in memories],
         'friendship': me and friendship_json(friendship_between(me, u), me),
         'friends_count': Friendship.objects.filter(Q(from_user=u) | Q(to_user=u), accepted=True).count(),
         'rating': rating.refresh(u), 'top_pet': top_pet(u),

@@ -7,7 +7,7 @@ import { Guide } from '@/components/guide/Guide';
 import { FoodPass, TrailList } from '@/components/quests/Expeditions';
 import { QuestList } from '@/components/quests/QuestList';
 import { gameApi, type BadgeInfo, type Category, type CheckIn, type PlaceFeature } from '@/lib/api';
-import { CATEGORY } from '@/lib/game';
+import { BADGE_XP, CATEGORY } from '@/lib/game';
 import { cn } from '@/lib/utils';
 
 function countBy<T>(items: T[], key: (x: T) => string) {
@@ -92,6 +92,7 @@ export default function PassPage() {
               <li key={b.code} className={cn('rounded-2xl border p-3', b.awarded ? 'border-trail-yellow bg-trail-yellow/15' : 'border-border bg-card')}>
                 <div className={cn('text-2xl', !b.awarded && 'grayscale opacity-60')} aria-hidden>{b.icon}</div>
                 <div className="mt-1 font-semibold leading-tight">{b.name}{b.awarded && <span className="sr-only"> (získáno)</span>}</div>
+                {!b.awarded && <div className="text-xs font-semibold text-primary">+{BADGE_XP} XP</div>}
                 <div className="mt-0.5 text-sm leading-snug text-muted-foreground">{b.description}</div>
                 {b.target != null && (
                   <div className="mt-2 flex items-center gap-2">

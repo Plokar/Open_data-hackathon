@@ -12,7 +12,7 @@ import { ShareQr } from '@/components/ui/share-qr';
 import { AccountSettings, ClaimBanner } from '@/components/profile/AccountSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  authApi, errorMessage, friendsApi, gameApi,
+  authApi, checkinPhotoUrl, errorMessage, friendsApi, gameApi,
   type FriendsData, type Person, type PetPreview, type PublicProfile,
 } from '@/lib/api';
 import { PET_TYPE, RARITY } from '@/lib/game';
@@ -293,6 +293,27 @@ export default function ProfilePage() {
         </ul>
       ) : <p className="mt-1 text-sm text-muted-foreground">Zatím žádní.</p>}
       {isMe && p.pets.length > 0 && <Link href="/pets" className="mt-2 inline-block text-sm font-semibold text-primary underline">Spravovat tvory a evoluce</Link>}
+
+      {(p.memories.length > 0 || isMe) && (
+        <>
+          <h2 className="mt-8 text-xl font-bold">Vzpomínky <span className="text-base font-semibold text-muted-foreground">{p.memories.length}</span></h2>
+          {isMe && <p className="text-sm text-muted-foreground">{user?.profile.photo_public ? 'Vidí je i ostatní přihlášení hráči.' : 'Vidíš je jen ty. Ostatním je ukážeš volbou dole.'}</p>}
+          {p.memories.length ? (
+            <ul className="mt-3 grid grid-cols-3 gap-2">
+              {p.memories.map((m) => (
+                <li key={m.id}>
+                  <a href={checkinPhotoUrl(m.id)} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- soukromá fotka z API s cookie, next/image ji nedostane */}
+                    <img src={checkinPhotoUrl(m.id)} alt={`Fotka z místa ${m.place.name}`} loading="lazy" className="aspect-square w-full object-cover" />
+                  </a>
+                  <Link href={`/place/${m.place.id}`} className="mt-1 block truncate text-xs font-semibold">{m.place.name}</Link>
+                  <div className="text-[11px] text-muted-foreground">{new Date(m.created_at).toLocaleDateString('cs-CZ')}</div>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="mt-1 text-sm text-muted-foreground">Zatím žádné. Každé razítko sem přidá fotku.</p>}
+        </>
+      )}
 
       <h2 className="mt-8 text-xl font-bold">Odznaky</h2>
       {p.badges.length ? (

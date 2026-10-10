@@ -46,6 +46,9 @@ def place_detail(request, pk):
     data['stamped'] = bool(mine)
     data['my_pet'] = mine and {'id': mine.id, 'name': mine.name, 'type': mine.type, 'seed': mine.seed,
                                'stage': mine.stage, 'rarity': mine.rarity, 'level': mine.level}
+    # Vzpomínka: hráčova fotka z razítka (soukromá, servíruje /api/checkins/<id>/photo/ s kontrolou vlastníka)
+    ci = request.user.is_authenticated and p.checkins.filter(user=request.user).exclude(photo='').first()
+    data['memory'] = ci and {'id': ci.id, 'created_at': ci.created_at}
     # Detail místa počítá i demo razítka (jinak po demo claimu svítí „nikdo tu nebyl“); žebříčky a statistiky kraje dál ne.
     data['stamp_count'] = p.checkins.count()
     data['forgotten'] = p.is_forgotten  # bonus XP za málo navštěvované místo

@@ -92,6 +92,12 @@ class MockAIProvider(BaseAIProvider):
         }
 
 
+def no_thinking(model: str) -> dict:
+    """Gemini 2.5+ Flash defaultně „přemýšlí“ a myšlení se počítá do maxOutputTokens, takže krátká odpověď přijde prázdná.
+    ponytail: Pro modely myšlení vypnout nejde, u nich se nastavení vynechá."""
+    return {} if "pro" in model else {"thinkingConfig": {"thinkingBudget": 0}}
+
+
 class GeminiProvider(BaseAIProvider):
     """Google Gemini REST Provider (bez nutnosti instalace těžkého SDK)"""
 
@@ -114,7 +120,7 @@ class GeminiProvider(BaseAIProvider):
             logger.warning("GEMINI_API_KEY není nastaven, přecházím na MockProvider")
             return MockAIProvider().generate(prompt, system_prompt, model, temperature, max_tokens)
 
-        model_name = model or "gemini-1.5-flash"
+        model_name = model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
 
         contents = []
@@ -128,6 +134,7 @@ class GeminiProvider(BaseAIProvider):
             "generationConfig": {
                 "temperature": temperature,
                 "maxOutputTokens": max_tokens,
+                **no_thinking(model_name),
             }
         }).encode("utf-8")
 
@@ -139,7 +146,7 @@ class GeminiProvider(BaseAIProvider):
         )
 
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 candidates = data.get("candidates", [])
                 if candidates:
@@ -311,7 +318,7 @@ def gemini_vision(prompt: str, image_bytes: bytes, mime: str = "image/jpeg", tim
             {"text": prompt},
             {"inline_data": {"mime_type": mime, "data": base64.b64encode(image_bytes).decode()}},
         ]}],
-        "generationConfig": {"temperature": 0, "maxOutputTokens": 5},
+        "generationConfig": {"temperature": 0, "maxOutputTokens": 5, **no_thinking(model)},
     }).encode("utf-8")
     req = urllib.request.Request(
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",

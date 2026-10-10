@@ -216,6 +216,8 @@ export const authApi = {
 export type Category = 'castle' | 'lookout' | 'spring' | 'culture' | 'nature' | 'heritage' | 'food' | 'info';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type PetType = 'fortress' | 'view' | 'nature' | 'spring' | 'culture' | 'taste';
+/** Stavy v souboji (engine: burn, wet, root…); fed je posila, ostatní neduhy. */
+export type StatusId = 'burn' | 'wet' | 'root' | 'weak' | 'slow' | 'curse' | 'daze' | 'sticky' | 'fed';
 
 export interface PlaceFeature {
   type: 'Feature';
@@ -262,6 +264,19 @@ export interface PlaceDetail {
   forgotten: boolean; // málo navštěvované místo: ×1,5 XP
   food_kinds?: { name: string; tasted: boolean }[]; // jen u výrobců Dobrot
   my_pet: { id: number; name: string; type: PetType; seed: number; stage: number; rarity: Rarity; level: number } | null | false;
+  memory: { id: number; created_at: string } | null | false; // hráčova fotka z razítka
+}
+
+/** Fotka z razítka. Soukromá: backend ji dá jen vlastníkovi (nebo všem přihlášeným, když má zapnuté photo_public). */
+export const checkinPhotoUrl = (id: number) => `${API_BASE}/api/checkins/${id}/photo/`;
+
+/** Políčko Tvor-diáře. Neobjevený druh má species i pet null. */
+export interface DexEntry {
+  type: PetType;
+  species: string | null;
+  count: number;
+  where: Category[];
+  pet: { id: number; name: string; seed: number; stage: number; rarity: Rarity; type2: PetType | '' } | null;
 }
 
 export interface Pet {
@@ -312,6 +327,21 @@ export interface MoveInfo {
   drain?: number;
   type?: PetType;
   bred?: boolean; // vyšlechtěné kouzlo
+  damage?: number; // průměrné zranění proti stejně silnému tvorovi (karta tvora)
+  in_row?: number | null; // kolikrát za sebou z plné výdrže, null = zdarma
+  elem?: PetType | null; // živel kouzla: účinnost proti typu cíle, null = bez živlu
+  status?: [StatusId, number]; // stav na cíl po zásahu (stav, tahy)
+  self_status?: [StatusId, number];
+  break?: boolean; // prorazí Obranu
+  solid?: boolean; // Obrana, kterou nic neprorazí
+  pierce?: number; // ignoruje tuto část obrany cíle
+  first?: boolean; // jde první
+  sap?: number; // ubere cíli výdrž
+  hits?: number; // počet zásahů
+  vs?: Partial<Record<StatusId, number>>; // kombo: násobek proti cíli v tom stavu
+  per_status?: number; // +x za každý neduh cíle
+  cleanse?: boolean; // smaže vlastní neduhy
+  aoe?: boolean; // zasáhne všechny soupeře
 }
 
 export interface CheckIn {
@@ -377,6 +407,7 @@ export interface PublicProfile {
   team: string | null;
   badges: { code: string; name: string; icon: string; awarded_at: string }[];
   pets: Pet[];
+  memories: { id: number; created_at: string; place: { id: number; name: string } }[]; // prázdné, když jsou fotky soukromé
 }
 
 export const gameApi = {
@@ -386,6 +417,7 @@ export const gameApi = {
   checkIn: (form: FormData) => apiFetch<CheckInResult>('/api/checkins/', { method: 'POST', body: form }),
   myCheckins: () => apiFetch<CheckIn[]>('/api/checkins/me/', { cache: 'no-store' }),
   myPets: () => apiFetch<Pet[]>('/api/pets/me/'),
+  dex: () => apiFetch<DexEntry[]>('/api/pets/dex/', { cache: 'no-store' }),
   favoritePet: (id: number, favorite: boolean) =>
     apiFetch<Pet>(`/api/pets/${id}/`, { method: 'PATCH', body: JSON.stringify({ favorite }) }),
   mergeOdds: (a: number, b: number) => apiFetch<MergeOdds>(`/api/pets/merge/preview/?a=${a}&b=${b}`, { cache: 'no-store' }),
@@ -460,6 +492,7 @@ export interface BattleFighter {
   stage: number;
   rarity: Rarity;
   level: number;
+  status?: Partial<Record<StatusId, number>>; // stav → kolik tahů ještě trvá
 }
 
 export interface BattleState {
@@ -486,14 +519,28 @@ export interface TurnEvent {
   fighter?: BattleFighter; // u střídání (move 'swap'): kdo nastupuje
   move: Move;
   name: string;
-  kind: MoveInfo['kind'];
+  kind: MoveInfo['kind'] | 'status' | 'swap';
   fx: string;
   cost: number;
+  elem?: PetType | null;
   hit?: boolean;
   crit?: boolean;
   damage?: number;
   effectiveness?: number;
   heal?: number;
+  hits?: number[]; // zranění po jednotlivých zásazích (víc zásahů)
+  more?: StrikeResult[]; // plošné kouzlo: další zasažení
+  fizzle?: boolean; // omámený, tah nevyšel
+  rooted?: boolean; // spoutaný chtěl Obranu, šel do Útoku
+  cleansed?: StatusId[];
+  buff?: StatusId;
+  broke?: boolean; combo?: boolean; sap?: number; status?: StatusId; resisted?: StatusId; extinguished?: boolean;
+}
+
+/** Výsledek útoku na jeden cíl (u plošného kouzla jeden na každého soupeře). */
+export interface StrikeResult {
+  target: string; hit: boolean; damage: number; crit?: boolean; effectiveness?: number; hits?: number[];
+  broke?: boolean; combo?: boolean; sap?: number; status?: StatusId; resisted?: StatusId; extinguished?: boolean;
 }
 
 export interface TurnResult {

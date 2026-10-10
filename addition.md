@@ -55,5 +55,6 @@ Odznaky a questy na Dobroty.
 (stretch) AI stylizace.
 Kroky 1 až 3 dávají použitelné demo i kdyby se vše ostatní nestihlo.
 
-Chceš, abych rozjel krok 1, tedy skript pro stažení a spojení datasetů míst do JSON? Potřebuju k tomu vědět jen jedno: které kategorie míst mají být ve hře (hrady, zámky, rozhledny, prameny, UNESCO, muzea, ...)?
+když zmáčknu to navigovat v mapě tak se májí otevřít google mapy s tím objekte,m nebo souřadnicemi místo toho openstreet
 
+v souboji záložce filtrovat podle oblíbených tvorů

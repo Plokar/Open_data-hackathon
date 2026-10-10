@@ -68,10 +68,16 @@ def level_for_xp(xp):
     return level
 
 
+def growth(level, stage):
+    """Násobek statů za level a evoluci. Engine jím násobí zranění, které tvor dostane (viz engine.resolve)."""
+    return (1 + LEVEL_GROWTH * (level - 1)) * STAGES[stage][1]
+
+
 def scaled(stats, level, stage, same_type_stamps=0):
-    """Staty do boje: level, stupeň evoluce a +2 % za každá 3 razítka stejného typu."""
-    mult = (1 + LEVEL_GROWTH * (level - 1)) * STAGES[stage][1] * (1 + 0.02 * (same_type_stamps // 3))
-    return {k: round(stats[k] * mult) for k in BASE_STATS}
+    """Staty do boje: level, stupeň evoluce a +2 % za každá 3 razítka stejného typu.
+    Výdrž neroste: ceny kouzel jsou pevné, takže s rostoucí výdrží šlo nejsilnější kouzlo opakovat pořád dokola."""
+    mult = growth(level, stage) * (1 + 0.02 * (same_type_stamps // 3))
+    return {k: stats[k] if k == 'stamina' else round(stats[k] * mult) for k in BASE_STATS}
 
 
 def effective_stats(pet, same_type_stamps=0):

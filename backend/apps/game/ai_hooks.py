@@ -28,13 +28,21 @@ def vision_trust_delta(photo_bytes, category):
         photo_bytes))
 
 
+def lore_prompt(spec, place):
+    """Pohádkový příběh tvora. Fakta o místě z Wikipedie (fetch_place_photos) a z popisu v datech kraje, když jsou."""
+    facts = ' '.join(x for x in ((place.extra or {}).get('wiki', {}).get('extract', ''), place.description) if x)[:1200]
+    return (
+        f'Napiš krátký pohádkový příběh (3–4 věty, česky, pro děti a teenagery) o tom, jak se u místa „{place.name}“ '
+        f'({place.subtype or CATEGORY_HINT[place.category]}, {place.obec or "Karlovarský kraj"}) zrodil kouzelný tvor '
+        f'„{spec["species"]}“ typu {pets.TYPE_LABEL[spec["type"]]}. '
+        + (f'Vyjdi ze skutečností o místě a jednu z nich do příběhu vpleť: {facts} ' if facts else '')
+        + 'Styl: fantasy pohádka, trochu tajemná a laskavá, žádné násilí. Bez nadpisu a bez úvodu, jen příběh.')
+
+
 def generate_lore(spec, place):
     fallback = pets.template_lore(spec, place)
     if not settings.AI_LORE:
         return fallback
-    r = get_ai_provider().generate(
-        f'Napiš 2 krátké vtipné věty (česky, pro děti) o tvorovi „{spec["species"]}“ typu {pets.TYPE_LABEL[spec["type"]]}, '
-        f'který se zrodil u místa „{place.name}“ ({place.subtype}, {place.obec}). Bez úvodu.',
-        temperature=0.9, max_tokens=120)
+    r = get_ai_provider().generate(lore_prompt(spec, place), temperature=0.9, max_tokens=400)
     text = (r.get('response') or '').strip() if r.get('status') == 'success' and not r.get('is_mock') else ''
-    return text[:500] or fallback
+    return text[:900] or fallback

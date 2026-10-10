@@ -6,6 +6,7 @@ import type { Pet, PetStats, PetType, Rarity } from '@/lib/api';
 import { PET_TYPE, RARITY } from '@/lib/game';
 import { ELEMENT_GLOW, petDataUrl } from '@/lib/petArt';
 import { cn } from '@/lib/utils';
+import { MoveDialog } from './MoveDialog';
 
 /** Ilustrace tvora z generátoru (lib/petArt): stavba, doplňky a barvy ze seedu, vzhled podle evoluce a rarity. */
 export function PetArt({ type, seed, size = 120, label, stage = 1, rarity = 'common', back = false, className, type2 = '' }: {
@@ -19,9 +20,12 @@ export function PetArt({ type, seed, size = 120, label, stage = 1, rarity = 'com
   );
 }
 
+/** Pozadí štítku kouzla v barvě jeho živlu (kříženec má kouzla dvou barev). */
+const spellBg = (e: PetType) => `linear-gradient(135deg, ${PET_TYPE[e].color}, color-mix(in oklab, ${ELEMENT_GLOW[e]} 70%, ${PET_TYPE[e].color}))`;
+
 const STAT_ROWS: [keyof PetStats, string, number][] = [
   ['hp', 'Život', 320], ['atk', 'Útok', 70], ['defense', 'Obrana', 45],
-  ['mag', 'Magie', 70], ['spd', 'Rychlost', 40], ['stamina', 'Výdrž', 260],
+  ['mag', 'Magie', 70], ['spd', 'Rychlost', 40], ['stamina', 'Výdrž', 200],
 ];
 
 /** Odpočet zranění; vrací null, když je tvor zdravý. */
@@ -43,10 +47,11 @@ export function PetCard({ pet, className, children, onEvolve }: {
   const injured = useInjury(pet.injured_until);
   const glow = ELEMENT_GLOW[pet.type];
   const xpPct = pet.xp_next ? Math.round((100 * (pet.xp - pet.xp_level)) / (pet.xp_next - pet.xp_level)) : 100;
+  const [move, setMove] = useState<string | null>(null);
   return (
     <div className={cn('overflow-hidden rounded-2xl border border-border bg-card', className)}>
       <div className="relative flex justify-center overflow-hidden pt-3"
-        style={{ background: `radial-gradient(120% 90% at 50% 100%, color-mix(in oklab, ${glow} 30%, transparent), transparent 70%), color-mix(in oklab, ${t.color} 14%, var(--card))` }}>
+        style={{ background: `radial-gradient(120% 90% at 50% 100%, color-mix(in oklab, ${glow} 30%, transparent), transparent 70%), color-mix(in oklab, ${RARITY[pet.rarity].color} 26%, var(--card))` }}>
         <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1">
           <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', RARITY[pet.rarity].className)}>{RARITY[pet.rarity].label}</span>
           <span className="rounded-full bg-card/80 px-2 py-0.5 text-xs font-semibold">{pet.stage_label}</span>
@@ -90,13 +95,15 @@ export function PetCard({ pet, className, children, onEvolve }: {
           ))}
         </dl>
 
-        <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Útoky">
+        <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Útoky, klepnutím zobrazíš popis a ukázku">
           {pet.moves.map((m) => (
-            <span key={m.id} className={cn('rounded-full px-2.5 py-1 text-xs font-semibold', m.kind === 'magic' ? 'text-white' : 'bg-muted')}
-              style={m.kind === 'magic' ? { background: `linear-gradient(135deg, ${t.color}, color-mix(in oklab, ${glow} 70%, ${t.color}))` } : undefined}
+            <button key={m.id} onClick={() => setMove(m.id)} aria-haspopup="dialog"
+              className={cn('cursor-pointer rounded-full px-2.5 py-1 text-xs font-semibold transition-transform hover:-translate-y-px active:translate-y-0',
+                m.kind === 'magic' ? 'text-white' : 'bg-muted hover:bg-muted/70')}
+              style={m.kind === 'magic' ? { background: spellBg(m.elem ?? pet.type) } : undefined}
               title={`${m.power ? `síla ${m.power}, ` : ''}výdrž ${m.cost}`}>
               {m.kind === 'magic' && '✦ '}{m.name}
-            </span>
+            </button>
           ))}
           {pet.stage < 3 && <span className="rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground">+ kouzlo po evoluci</span>}
         </div>
@@ -113,6 +120,7 @@ export function PetCard({ pet, className, children, onEvolve }: {
 
         {pet.lore && <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{pet.lore}</p>}
         {children}
+        {move && <MoveDialog pet={pet} moveId={move} onPick={setMove} onClose={() => setMove(null)} />}
       </div>
     </div>
   );

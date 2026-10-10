@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Crown } from 'lucide-react';
-import type { BattleFighter, TurnResult } from '@/lib/api';
+import type { BattleFighter, StatusId, TurnResult } from '@/lib/api';
 import type { BattleScene } from '@/lib/battleFx';
-import { PET_TYPE } from '@/lib/game';
+import { PET_TYPE, STATUS } from '@/lib/game';
 import { cn } from '@/lib/utils';
 
 type Bars = Record<string, { hp: number; sp: number }>;
@@ -33,6 +33,19 @@ function Hud({ f, v, compact, bench = [] }: { f: BattleFighter; v: { hp: number;
           <div className={cn('h-full rounded-full transition-[width,background-color] duration-700 ease-out', pct > 50 ? 'bg-emerald-400' : pct > 20 ? 'bg-amber-400' : 'bg-red-500')} style={{ width: `${pct}%` }} />
         </div>
       </div>
+      {Object.keys(f.status ?? {}).length > 0 && !dead && (
+        <div className="mt-1 flex flex-wrap gap-0.5">
+          {(Object.entries(f.status ?? {}) as [StatusId, number][]).map(([id, n]) => {
+            const st = STATUS[id];
+            return (
+              <span key={id} title={`${st.label}: ${st.text}`} aria-label={`${st.label}, ještě ${n} ${n === 1 ? 'tah' : n < 5 ? 'tahy' : 'tahů'}: ${st.text}`}
+                className="flex items-center gap-0.5 rounded px-1 text-[9px] font-bold leading-4" style={{ background: st.color }}>
+                <st.Icon className="h-2.5 w-2.5" aria-hidden />{!compact && st.label} {n}
+              </span>
+            );
+          })}
+        </div>
+      )}
       {f.me && (
         <>
           <div className="mt-1 flex items-center gap-1.5">

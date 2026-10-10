@@ -8,7 +8,7 @@ from apps.game import pets
 from apps.game.models import CheckIn, Pet, Profile
 from apps.places.models import Place
 
-from . import service
+from . import engine, service
 
 
 def _player(name, place):
@@ -37,7 +37,9 @@ async def test_practice_over_websocket(place):
     assert state['type'] == 'state' and state['turn'] == 1 and state['is_bot']
     end = None
     while not end:
-        await ws.send_json_to({'type': 'move', 'turn': state['turn'], 'move': 'heavy'})
+        me = next(f for f in state['fighters'] if f['me'])
+        move = 'heavy' if me['sp'] >= engine.MOVES['heavy']['cost'] else 'attack'  # bez výdrže server tah ignoruje
+        await ws.send_json_to({'type': 'move', 'turn': state['turn'], 'move': move})
         while True:
             msg = await ws.receive_json_from(timeout=5)
             if msg['type'] == 'battle_end':
@@ -259,7 +261,7 @@ def test_boss_lineup_swaps_and_splits_xp(place):
     assert service.view(battle, 'a')['reserve']['a'][0]['name'] == p2.name
     fs = battle.state['fighters']
     fs['a'].update(hp=1, defense=1, spd=999)    # první dá ránu a padne
-    fs['b'].update(hp=500, spd=500, defense=1000)
+    fs['b'].update(hp=500, max_hp=500, spd=500, defense=1000, moves=['attack'])  # boss vždy zaútočí a netrefí vedle
     battle.save()
     service.submit_move(battle.id, u.id, 1, 'attack')
     battle.refresh_from_db()

@@ -54,7 +54,8 @@ def _fighter(pet, user, slot, mode):
     from apps.game.views import profile_of
     cats = [c for c, t in pets.CATEGORY_TYPE.items() if t == pet.type]
     same_type = CheckIn.objects.filter(user_id=pet.owner_id, place__category__in=cats).count()
-    f = engine.fighter(pets.effective_stats(pet, same_type), pet.type, pet.name, pet.stage, pet.type2, pet.bonus_move)
+    f = engine.fighter(pets.effective_stats(pet, same_type), pet.type, pet.name, pet.stage, pet.type2, pet.bonus_move,
+                       pets.growth(pet.level, pet.stage))
     f.update(seed=pet.seed, rarity=pet.rarity, level=pet.level, team=team_of(mode, slot),
              user=user.id, pet=pet.id, owner=profile_of(user).nickname)
     return f
@@ -104,7 +105,7 @@ def create_practice(user, pet):
     spec = pets.generate(place.id, place.category, 'common', 'bot', seed)
     # Strážce roste s tvým tvorem (level i evoluce), ať trénink zůstane výzvou.
     bot = engine.fighter(pets.scaled(spec, pet.level, pet.stage), spec['type'],
-                         f'Strážce: {spec["species"]} ({place.name})', pet.stage)
+                         f'Strážce: {spec["species"]} ({place.name})', pet.stage, growth=pets.growth(pet.level, pet.stage))
     bot.update(seed=spec['seed'], rarity='common', level=pet.level, team='b', user=None, owner=None)
     return _vs_bot(user, pet, 'practice', bot, seed)
 
@@ -203,15 +204,16 @@ def _resolve(b):
     s, fs = b.state, fighters(b)
     for slot in s.get('bots', []):
         if fs[slot]['hp'] > 0:
-            s['pending'][slot] = {'move': engine.bot_move(fs[slot], b.seed + ord(slot), s['turn']), 'target': None}
+            s['pending'][slot] = engine.bot_pick(fs, slot, b.seed + ord(slot), s['turn'])
     turn = s['turn']
     events = engine.resolve(fs, s['pending'], b.seed, turn)
     # zranění podle tvorů (XP v sestavě se dělí podle toho, kolik kdo dal)
     dmg = s.setdefault('dmg', {})
     for e in events:
         pet_id = fs[e['actor']].get('pet')
-        if e.get('damage') and pet_id:
-            dmg[str(pet_id)] = dmg.get(str(pet_id), 0) + e['damage']
+        total = e.get('damage', 0) + sum(x['damage'] for x in e.get('more', ()))  # plošné kouzlo zasáhne víc soupeřů
+        if total and pet_id:
+            dmg[str(pet_id)] = dmg.get(str(pet_id), 0) + total
     # padlého tvora ze sestavy nahradí další
     for slot, bench in s.get('reserve', {}).items():
         if fs[slot]['hp'] <= 0 and bench:
@@ -274,11 +276,13 @@ def _finish(b, w):
             place = Place.objects.get(pk=boss['place'])
             trophy = bosses.reward(user, place, datetime.fromisoformat(boss['week']).date())
             new_badges = badges.evaluate(user)
+            player_xp += badges.BADGE_XP * len(new_badges)
+            prof.add_xp(badges.BADGE_XP * len(new_badges))
             # state je JSONField: datumy z pet_json převést na text
             pet_data = trophy and json.loads(json.dumps(pet_json(trophy), cls=DjangoJSONEncoder))
             reward = {'pet': pet_data, 'badges': [{'code': x.code, 'name': x.name, 'icon': x.icon} for x in new_badges]}
         prof.rating = rating.compute(user)
-        prof.save(update_fields=['rating'])
+        prof.save(update_fields=['rating', 'xp', 'level'])
         result[slot] = {'xp': xp, 'player_xp': player_xp, 'pets': pet_results, 'rating_delta': prof.rating - before,
                         'level_up': level_up, 'injured_until': injured, 'reward': reward,
                         'can_evolve': any(r['can_evolve'] for r in pet_results)}
@@ -324,7 +328,7 @@ def timeout(battle_id, turn):
     return True
 
 
-PUBLIC = ('hp', 'max_hp', 'guard', 'type', 'type2', 'name', 'seed', 'stage', 'rarity', 'level', 'team', 'owner', 'boss')
+PUBLIC = ('hp', 'max_hp', 'guard', 'type', 'type2', 'name', 'seed', 'stage', 'rarity', 'level', 'team', 'owner', 'boss', 'status')
 
 
 def _public(slot, f):

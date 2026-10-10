@@ -1,6 +1,7 @@
 'use client';
 
-import { Bandage } from 'lucide-react';
+import { useState } from 'react';
+import { Bandage, Star } from 'lucide-react';
 import type { Pet } from '@/lib/api';
 import { PET_TYPE } from '@/lib/game';
 import { PetArt, useInjury } from '@/components/pet/PetCard';
@@ -27,10 +28,29 @@ function Option({ p, checked, onChange }: { p: Pet; checked: boolean; onChange: 
 }
 
 export function PetPicker({ pets, value, onChange }: { pets: Pet[]; value: number | null; onChange: (id: number) => void }) {
+  const [favOnly, setFavOnly] = useState(false);
+  const favs = pets.filter((p) => p.favorite);
+  const shown = favOnly ? favs : pets;
+  const filter = (on: boolean) => {
+    setFavOnly(on);
+    // vybraný tvor by ve filtru zmizel: vybrat prvního zdravého oblíbeného
+    const first = favs.find((p) => !isInjured(p));
+    if (on && first && !favs.some((p) => p.id === value)) onChange(first.id);
+  };
   return (
-    <div className="mt-2 flex gap-2 overflow-x-auto pb-2" role="radiogroup" aria-label="Výběr tvora">
-      {pets.map((p) => <Option key={p.id} p={p} checked={value === p.id} onChange={onChange} />)}
-    </div>
+    <>
+      {favs.length > 0 && (
+        <div className="mt-2 inline-flex rounded-xl bg-muted p-1 text-sm font-semibold" role="group" aria-label="Filtr tvorů">
+          <button onClick={() => filter(false)} aria-pressed={!favOnly} className={cn('cursor-pointer rounded-lg px-3 py-1.5', !favOnly && 'bg-card shadow-sm')}>Všichni {pets.length}</button>
+          <button onClick={() => filter(true)} aria-pressed={favOnly} className={cn('flex cursor-pointer items-center gap-1 rounded-lg px-3 py-1.5', favOnly && 'bg-card shadow-sm')}>
+            <Star className="h-3.5 w-3.5 fill-trail-yellow text-trail-yellow" aria-hidden /> Oblíbení {favs.length}
+          </button>
+        </div>
+      )}
+      <div className="mt-2 flex gap-2 overflow-x-auto pb-2" role="radiogroup" aria-label="Výběr tvora">
+        {shown.map((p) => <Option key={p.id} p={p} checked={value === p.id} onChange={onChange} />)}
+      </div>
+    </>
   );
 }
 

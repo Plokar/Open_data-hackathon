@@ -8,7 +8,7 @@ Kdo bosse porazí, dostane legendárního tvora a odznak.
 
 Síla bosse se odvozuje od tvorů, kteří proti němu jdou (staty o 15 % nad jejich průměrem), takže je stejně
 těžký na levelu 3 i 15. Životy rostou jen s počtem hráčů, ne s velikostí sestavy, ta dává hráči „životy“ navíc.
-Vyladěno simulací (bot proti botovi): 1 tvor ~5 %, sestava 3 tvorů ~60–80 %, parta 2 ~35–60 %, parta 3 ~80 %.
+Vyladěno simulací (bot proti botovi, se stavy a komby): 1 tvor ~1–6 %, sestava 3 tvorů ~70–88 %, parta 2 ~27–40 %, parta 3 ~82–91 %.
 """
 import random
 from datetime import timedelta
@@ -29,8 +29,8 @@ CATEGORIES = ('castle', 'lookout', 'nature', 'spring', 'culture', 'heritage')
 TITLE = {'fortress': 'Pán hradeb', 'view': 'Vládce větrů', 'nature': 'Duch hvozdu',
          'spring': 'Pán pramenů', 'culture': 'Strážce múz', 'taste': 'Mistr hostin'}
 STAT_MULT = 1.15     # staty bosse vůči průměru tvorů proti němu
-HP_MULT = 1.7        # životy bosse = průměrné životy tvora × (HP_MULT + HP_PER_FRIEND × další hráči)
-HP_PER_FRIEND = 0.5
+HP_MULT = 2.1        # životy bosse = průměrné životy tvora × (HP_MULT + HP_PER_FRIEND × další hráči)
+HP_PER_FRIEND = 0.6
 
 
 def week_start(day=None):
@@ -74,7 +74,7 @@ def fighter(boss, party, players=1):
     stats['stamina'] = round(avg('max_sp') * STAT_MULT)
     stats['hp'] = round(avg('max_hp') * (HP_MULT + HP_PER_FRIEND * (players - 1)))
     level = max(f['level'] for f in party) + 2  # jen pro zobrazení
-    f = engine.fighter(stats, boss['type'], boss['name'], 3)
+    f = engine.fighter(stats, boss['type'], boss['name'], 3, growth=sum(p.get('growth', 1) for p in party) / n)
     f.update(seed=boss['seed'], rarity='legendary', level=level, team='boss', boss=True, user=None, owner=None)
     return f
 

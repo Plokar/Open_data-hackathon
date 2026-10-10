@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Guide } from '@/components/guide/Guide';
 import { PlaceAbout, PlacePhoto } from '@/components/place/PlacePhoto';
 import { useAuth } from '@/contexts/AuthContext';
-import { errorMessage, gameApi, type CheckInResult, type PlaceDetail } from '@/lib/api';
-import { CATEGORY, RARITY, formatDistance, position } from '@/lib/game';
+import { checkinPhotoUrl, errorMessage, gameApi, type CheckInResult, type PlaceDetail } from '@/lib/api';
+import { BADGE_XP, CATEGORY, RARITY, formatDistance, position } from '@/lib/game';
 import { BossPanel } from '@/components/battle/BossPanel';
 import { cn } from '@/lib/utils';
 
@@ -67,7 +67,7 @@ export default function PlacePage() {
       if (demo.current) form.append('demo', '1');
       const r = await gameApi.checkIn(form);
       setResult(r);
-      setPlace({ ...place, stamped: true, stamp_count: place.stamp_count + 1, my_pet: r.pet, forgotten: false,
+      setPlace({ ...place, stamped: true, stamp_count: place.stamp_count + 1, my_pet: r.pet, forgotten: false, memory: r.checkin,
         food_kinds: place.food_kinds?.map((k) => ({ ...k, tasted: true })) });
     } catch (err) {
       setError(errorMessage(err));
@@ -137,8 +137,8 @@ export default function PlacePage() {
           <div className="flex items-center gap-3"><Bus className="h-5 w-5 shrink-0 text-trail-blue" aria-hidden /><span>Autobus staví na zastávce <b>{place.nearest_stop_name}</b>, {formatDistance(place.nearest_stop_m)} odsud</span></div>
         )}
         <a className="flex items-center gap-3 font-semibold text-primary underline" target="_blank" rel="noreferrer"
-          href={`https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=16/${place.lat}/${place.lon}`}>
-          <MapPin className="h-5 w-5" aria-hidden /> Navigovat v mapě
+          href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`}>
+          <MapPin className="h-5 w-5" aria-hidden /> Navigovat v Google Mapách
         </a>
         {place.url && !place.extra.swim && <a className="flex items-center gap-3 font-semibold text-primary underline" href={place.url} target="_blank" rel="noreferrer"><ExternalLink className="h-5 w-5" aria-hidden /> Web místa</a>}
       </div>
@@ -147,16 +147,29 @@ export default function PlacePage() {
         {!user ? (
           <Link href="/start" className="flex h-14 items-center justify-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground">Založ si Pas a získej razítko</Link>
         ) : place.stamped ? (
-          place.my_pet ? (
-            <Link href="/pets" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
-              <PetArt type={place.my_pet.type} seed={place.my_pet.seed} stage={place.my_pet.stage} rarity={place.my_pet.rarity} size={72} />
-              <div className="min-w-0">
-                <div className="text-xs text-muted-foreground">Tvůj tvor z tohoto místa</div>
-                <div className="truncate text-lg font-bold">{place.my_pet.name}</div>
-                <div className="text-sm text-muted-foreground">lvl {place.my_pet.level}, razítko máš v Pasu</div>
-              </div>
-            </Link>
-          ) : <Guide who="boza">Tohle razítko už v Pasu máš. Na mapě čekají další místa.</Guide>
+          <>
+            {place.memory && (
+              <figure className="mb-3 overflow-hidden rounded-2xl border border-border bg-card">
+                {/* eslint-disable-next-line @next/next/no-img-element -- soukromá fotka z API s cookie, next/image by ji přes svůj optimalizátor nedostal */}
+                <img src={checkinPhotoUrl(place.memory.id)} alt={`Tvoje fotka z místa ${place.name}`} loading="lazy"
+                  className="aspect-[4/3] w-full object-cover" onError={(e) => { e.currentTarget.parentElement!.hidden = true; }} />
+                <figcaption className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span className="font-hand text-lg leading-none text-primary">Tvoje vzpomínka</span>
+                  <span className="text-muted-foreground">{new Date(place.memory.created_at).toLocaleDateString('cs-CZ')}</span>
+                </figcaption>
+              </figure>
+            )}
+            {place.my_pet ? (
+              <Link href="/pets" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+                <PetArt type={place.my_pet.type} seed={place.my_pet.seed} stage={place.my_pet.stage} rarity={place.my_pet.rarity} size={72} />
+                <div className="min-w-0">
+                  <div className="text-xs text-muted-foreground">Tvůj tvor z tohoto místa</div>
+                  <div className="truncate text-lg font-bold">{place.my_pet.name}</div>
+                  <div className="text-sm text-muted-foreground">lvl {place.my_pet.level}, razítko máš v Pasu</div>
+                </div>
+              </Link>
+            ) : <Guide who="boza">Tohle razítko už v Pasu máš. Na mapě čekají další místa.</Guide>}
+          </>
         ) : (
           <>
             <p className="mb-3 text-center text-sm text-muted-foreground">Vyfoť místo, ne lidi. Poloha se ověří, musíš být blíž než 300 m.</p>
@@ -198,7 +211,7 @@ export default function PlacePage() {
             <PetCard pet={result.pet} />
             {result.new_badges.length > 0 && (
               <div className="mt-3 rounded-2xl bg-trail-yellow/25 p-3 text-center text-sm font-semibold">
-                Nový odznak: {result.new_badges.map((b) => `${b.icon} ${b.name}`).join(', ')}
+                Nový odznak: {result.new_badges.map((b) => `${b.icon} ${b.name}`).join(', ')} (+{BADGE_XP * result.new_badges.length} XP)
               </div>
             )}
             <div className="mt-3 grid grid-cols-2 gap-2">

@@ -16,7 +16,7 @@ import {
   battleApi, errorMessage, gameApi,
   type BattleDetail, type BattleEnd, type BattleFighter, type BattleMode, type BattleState, type MoveInfo, type Pet, type TurnResult,
 } from '@/lib/api';
-import { PET_TYPE, positionPayload } from '@/lib/game';
+import { PET_TYPE, STATUS, comboOn, fmtMult, moveTags, positionPayload, typeMult } from '@/lib/game';
 import { ELEMENT_GLOW } from '@/lib/petArt';
 import { cn } from '@/lib/utils';
 
@@ -29,33 +29,56 @@ const TEAM_COLOR: Record<string, string> = { red: 'bg-red-500', blue: 'bg-blue-5
 function describe(r: TurnResult, name: (slot?: string) => string) {
   return r.events.map((e) => {
     const who = name(e.actor);
-    if (e.kind === 'guard') return `${who}: ${e.name}${e.heal ? `, +${e.heal} HP` : ''}.`;
-    if (!e.damage && e.heal) return `${who}: ${e.name}, +${e.heal} HP.`;
-    const on = e.target ? ` na ${name(e.target)}` : '';
-    if (!e.hit) return `${who}: ${e.name}${on}, vedle!`;
-    const eff = e.effectiveness === 1.5 ? ' Velmi účinné!' : e.effectiveness === 0.75 ? ' Málo účinné.' : '';
-    return `${who}: ${e.name}${on} za ${e.damage}${e.crit ? ' (kritický zásah)' : ''}.${eff}${e.heal ? ` Vysál +${e.heal} HP.` : ''}`;
+    if (e.kind === 'status') return `${name(e.target)} hoří, −${e.damage} HP.`;
+    if (e.kind === 'swap') return `Nastupuje ${e.name}.`;
+    if (e.fizzle) return `${who} je omámený, ${e.name} nevyšlo.`;
+    const rooted = e.rooted ? ' (spoutaný, nemohl se krýt)' : '';
+    if (e.kind === 'guard' || !e.target) {
+      const extra = [e.heal ? `+${e.heal} HP` : '', e.cleansed?.length ? 'očištěn' : '', e.buff ? STATUS[e.buff].label.toLowerCase() : ''].filter(Boolean);
+      return `${who}: ${e.name}${extra.length ? `, ${extra.join(', ')}` : ''}.`;
+    }
+    const one = (x: { target: string; hit: boolean; damage: number; crit?: boolean; effectiveness?: number; broke?: boolean; combo?: boolean; status?: string; sap?: number }) => {
+      if (!x.hit) return `${name(x.target)}, vedle`;
+      const eff = x.effectiveness === 1.5 ? ', velmi účinné' : x.effectiveness === 0.75 ? ', málo účinné' : '';
+      const bits = [x.crit && 'kritický zásah', x.combo && 'kombo', x.broke && 'prolomil Obranu',
+        x.status && STATUS[x.status as keyof typeof STATUS]?.label.toLowerCase(), x.sap && `−${x.sap} výdrže`].filter(Boolean);
+      return `${name(x.target)} za ${x.damage}${eff}${bits.length ? ` (${bits.join(', ')})` : ''}`;
+    };
+    const hits = [e as Parameters<typeof one>[0], ...(e.more ?? [])].map(one).join('; ');
+    return `${who}${rooted}: ${e.name} na ${hits}.${e.heal ? ` Vysál +${e.heal} HP.` : ''}`;
   });
 }
 
 const MOVE_ICON = { attack: Sword, heavy: Hammer, guard: Shield } as Record<string, typeof Sword>;
 const needsTarget = (m: MoveInfo) => m.kind !== 'guard' && m.power > 0;
 
-function MoveButton({ m, sp, disabled, onClick, active }: { m: MoveInfo; sp: number; disabled: boolean; onClick: () => void; active?: boolean }) {
+/** Tlačítko tahu: proti jedinému soupeři ukáže účinnost živlu a kombo, pod názvem čím je tah zvláštní. */
+function MoveButton({ m, sp, disabled, onClick, active, foe, rooted }: {
+  m: MoveInfo; sp: number; disabled: boolean; onClick: () => void; active?: boolean; foe?: BattleFighter; rooted?: boolean;
+}) {
   const Icon = MOVE_ICON[m.id] ?? (m.kind === 'guard' ? Shield : Sparkles);
   const broke = sp < m.cost;
-  const t = m.type ?? 'fortress';
+  const blocked = rooted && m.kind === 'guard'; // spoutaný se nemůže krýt
+  const t = m.elem ?? m.type ?? 'fortress';
   const magic = m.kind === 'magic' || m.id === 'bastion';
-  const hint = m.power ? `síla ${m.power}${m.acc < 1 ? ` · ${Math.round(m.acc * 100)} %` : ''}` : m.heal ? `léčí ${Math.round(m.heal * 100)} %` : '½ zranění';
+  const eff = foe && m.power ? typeMult(m.elem, foe.type) : 1;
+  const combo = !!foe && m.power > 0 && comboOn(m, foe.status);
+  const base = m.power ? `síla ${m.power * (m.hits ?? 1)}` : m.heal ? `léčí ${Math.round(m.heal * 100)} %` : '½ zranění';
+  const hint = blocked ? 'spoutaný, nejde' : [base, ...moveTags(m)].slice(0, 2).join(', ');
   return (
-    <button onClick={onClick} disabled={disabled || broke} aria-label={`${m.name}, ${hint}, výdrž ${m.cost}`} aria-pressed={active}
+    <button onClick={onClick} disabled={disabled || broke || blocked} aria-pressed={active}
+      aria-label={`${m.name}, ${hint}${eff !== 1 ? `, proti soupeři ${fmtMult(eff)}` : ''}${combo ? ', kombo' : ''}, výdrž ${m.cost}`}
       className={cn('relative flex min-h-16 cursor-pointer flex-col items-start justify-center overflow-hidden rounded-2xl border-b-4 px-3 py-2 text-left text-white transition-transform active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40',
         !magic && (m.kind === 'guard' ? 'border-sky-900 bg-sky-700' : 'border-[#1d2a22] bg-[#2e3d34]'), active && 'ring-4 ring-trail-yellow')}
       style={magic ? { background: `linear-gradient(135deg, ${PET_TYPE[t].color}, color-mix(in oklab, ${ELEMENT_GLOW[t]} 55%, ${PET_TYPE[t].color}))`, borderColor: 'rgb(0 0 0 / 0.35)' } : undefined}>
-      {m.bred && <span className="absolute right-2 top-1 text-[9px] font-black uppercase tracking-wide text-trail-yellow">vyšlechtěné</span>}
-      <span className="flex items-center gap-1.5 text-sm font-bold leading-tight"><Icon className="h-4 w-4 shrink-0" aria-hidden />{m.name}</span>
+      <span className="flex w-full items-center gap-1.5 text-sm font-bold leading-tight">
+        <Icon className="h-4 w-4 shrink-0" aria-hidden /><span className="min-w-0 flex-1">{m.name}</span>
+        {m.bred && <Sparkles className="h-3.5 w-3.5 shrink-0 text-trail-yellow" aria-label="vyšlechtěné" />}
+        {combo && <span className="shrink-0 rounded bg-trail-yellow px-1 text-[10px] font-black text-[#3b2a00]">kombo</span>}
+        {eff !== 1 && <span className={cn('shrink-0 rounded px-1 text-[10px] font-black', eff > 1 ? 'bg-emerald-300 text-emerald-950' : 'bg-black/45 text-red-200')}>{fmtMult(eff)}</span>}
+      </span>
       <span className="mt-0.5 flex w-full items-center justify-between text-[11px] opacity-85">
-        <span>{hint}</span>
+        <span className="min-w-0 truncate">{hint}</span>
         <span className={cn('flex items-center gap-0.5 font-semibold', broke && 'text-red-200')}><Zap className="h-3 w-3" aria-hidden />{m.cost}</span>
       </span>
     </button>
@@ -329,8 +352,16 @@ export default function BattlePage() {
                   <PetArt type={f.type} type2={f.type2 || ''} seed={f.seed} stage={f.stage} rarity={f.rarity} size={44} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold">{f.name}</span>
-                    <span className="block text-xs text-muted-foreground">{f.owner ?? 'strážce'} · {Math.round((100 * f.hp) / f.max_hp)} % HP{s.mode === 'team' ? ` · ${TEAM_LABEL[f.team]}` : ''}</span>
+                    <span className="block text-xs text-muted-foreground">{f.owner ?? 'strážce'}, {Math.round((100 * f.hp) / f.max_hp)} % HP{s.mode === 'team' ? `, ${TEAM_LABEL[f.team]}` : ''}</span>
                   </span>
+                  {(() => {
+                    const eff = typeMult(picked.elem, f.type), combo = comboOn(picked, f.status);
+                    return (eff !== 1 || combo) && (
+                      <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-xs font-bold', combo ? 'bg-trail-yellow/40' : eff > 1 ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-red-500/15 text-red-700 dark:text-red-300')}>
+                        {combo ? 'kombo' : eff > 1 ? `účinné ${fmtMult(eff)}` : `slabé ${fmtMult(eff)}`}
+                      </span>
+                    );
+                  })()}
                   <span className="h-2 w-16 overflow-hidden rounded-full bg-muted"><span className="block h-2 rounded-full bg-red-500" style={{ width: `${(100 * f.hp) / f.max_hp}%` }} /></span>
                 </button>
               ))}
@@ -340,7 +371,8 @@ export default function BattlePage() {
         ) : (
           <div className="mt-2 grid grid-cols-2 gap-2">
             {s.moves.map((m) => (
-              <MoveButton key={m.id} m={m} sp={me.sp ?? 0} disabled={!s.waiting_for_you || animating} onClick={() => move(m)} />
+              <MoveButton key={m.id} m={m} sp={me.sp ?? 0} disabled={!s.waiting_for_you || animating} onClick={() => move(m)}
+                foe={enemies.length === 1 ? enemies[0] : undefined} rooted={!!me.status?.root} />
             ))}
             {!s.waiting_for_you && !animating && <p className="col-span-2 text-center text-xs text-muted-foreground">Čekám na {group ? 'ostatní' : 'soupeře'}…</p>}
           </div>

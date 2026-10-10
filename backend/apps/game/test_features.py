@@ -174,3 +174,43 @@ def test_photo_public_toggle(api_client):
     assert api_client.get('/api/auth/me/').data['profile']['photo_public'] is False
     r = api_client.put('/api/auth/me/', {'photo_public': True}, format='json')
     assert r.status_code == 200 and r.data['profile']['photo_public'] is True
+
+
+@pytest.mark.django_db
+def test_dex_memory_and_badge_xp(api_client):
+    from .models import Badge
+    Badge.objects.create(code='first', name='První', description='', rule={'type': 'count', 'n': 1})
+    place = _place(1, 'spring')
+    me = User.objects.create_user('me', password='x')
+    api_client.force_authenticate(me)
+    r = _checkin(api_client, place)
+    assert r.status_code == 201 and r.data['new_badges']
+    assert r.data['xp_gain'] == round(50 * 1.5) * (2 if quests.daily_place_for(me)[0] == place else 1) + badges.BADGE_XP
+    dex = api_client.get('/api/pets/dex/').data
+    found = [d for d in dex if d['pet']]
+    assert len(dex) == 24 and len(found) == 1 and found[0]['type'] == 'spring' and found[0]['count'] == 1
+    assert all(d['species'] is None for d in dex if not d['pet'])            # neobjevené druhy API neprozradí
+    assert api_client.get(f'/api/places/{place.id}/').data['memory']['id'] == r.data['checkin']['id']
+
+
+def test_lore_prompt_uses_wiki_facts():
+    from . import ai_hooks
+    place = Place(name='Loket', category='castle', obec='Loket', extra={'wiki': {'extract': 'Hrad stojí na skále nad Ohří.'}})
+    prompt = ai_hooks.lore_prompt({'species': 'Hradník', 'type': 'fortress'}, place)
+    assert 'nad Ohří' in prompt and 'Hradník' in prompt and 'pohád' in prompt
+
+
+@pytest.mark.django_db
+def test_profile_memories_follow_photo_public(api_client):
+    owner, other = User.objects.create_user('owner', password='x'), User.objects.create_user('other', password='x')
+    api_client.force_authenticate(owner)
+    assert _checkin(api_client, _place(1)).status_code == 201
+    assert len(api_client.get('/api/users/owner/').data['memories']) == 1               # vlastník vždy
+    api_client.force_authenticate(other)
+    assert api_client.get('/api/users/owner/').data['memories'] == []                   # soukromé
+    owner.profile.photo_public = True
+    owner.profile.save()
+    m = api_client.get('/api/users/owner/').data['memories']
+    assert len(m) == 1 and api_client.get(f"/api/checkins/{m[0]['id']}/photo/").status_code == 200
+    api_client.force_authenticate(None)
+    assert api_client.get('/api/users/owner/').data['memories'] == []                   # nepřihlášený nic

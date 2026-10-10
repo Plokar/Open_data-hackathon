@@ -4,6 +4,8 @@ from apps.places.models import Place
 from . import quests
 from .models import Badge, CheckIn, UserBadge
 
+BADGE_XP = 100  # XP hráči za každý nový odznak (zrcadlí frontend lib/game.ts)
+
 
 def progress(rule, user):
     """Vrátí (postup, cíl) pro pravidlo odznaku."""

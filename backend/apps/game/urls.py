@@ -7,6 +7,7 @@ urlpatterns = [
     path('checkins/me/', views.my_checkins, name='checkins-me'),
     path('checkins/<int:pk>/photo/', views.checkin_photo, name='checkin-photo'),
     path('pets/me/', views.my_pets, name='pets-me'),
+    path('pets/dex/', views.pet_dex, name='pet-dex'),
     path('pets/<int:pk>/', views.pet_detail, name='pet-detail'),
     path('pets/<int:pk>/evolve/', views.pet_evolve, name='pet-evolve'),
     path('pets/merge/', views.pet_merge, name='pet-merge'),

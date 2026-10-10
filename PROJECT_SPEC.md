@@ -195,6 +195,9 @@ Na serveru, tahové, současné rozhodování obou hráčů, výsledek počítá
 
 - Každý tah hráč vybere ze tří akcí: **Útok** (síla 40, vždy zasáhne), **Silný úder** (síla 70, 70 % šance zásahu), **Obrana** (na další zásah poloviční zranění).
 - Zranění: `floor(power * atk / (defense_eff) * type_mult * rng(0.9, 1.1) * DAMAGE_SCALE)`, minimálně 1; `DAMAGE_SCALE = 0.25` (ladění délky boje). Pořadí řeší `spd` (vyšší jedná dřív).
+- **Živly a strategie (od 10/2026):** každé kouzlo má živel (`elem`), účinnost 1,5× / 0,75× se řídí živlem kouzla proti typu cíle, fyzické útoky jsou bez živlu. Zranění se násobí `growth` cíle (level a evoluce), takže tempo boje je stejné na každém levelu. Výdrž s levelem neroste, obnova je 8 za tah (Obrana +15).
+- **Efekty kouzel** (`engine.MOVES`): stavy na cíl (hoří, promočený, spoutaný, oslabený, zpomalený, prokletý, omámený, zalepený) a posila sytý; průraz Obrany (`break`, Hradní štít je `solid`), ignorování obrany (`pierce`), první tah (`first`), ubrání výdrže (`sap`), víc zásahů (`hits`, Obrana chytí jen první), plošný útok (`aoe`), kombo proti stavu (`vs`, `per_status`), očista (`cleanse`). Stavy trvají od dalšího tahu, mokrého nic nezapálí, voda hoření uhasí, spoutaný se nemůže krýt.
+- Bot (strážce, boss) volí tah podle skóre: účinnost na cíl, kombo, chybějící stav, léčení při nízkém HP, šetření výdrže.
 - RNG je `random.Random(seed ^ turn)`, takže boj lze z logu **přesně přehrát** a zkontrolovat.
 - Limit 30 tahů, potom vyhrává vyšší zbývající HP v procentech.
 - Časový limit tahu 15 s; po vypršení server automaticky zvolí **Útok**.

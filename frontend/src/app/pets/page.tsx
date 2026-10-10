@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Dna, Star, X } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, Dna, Star, X } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Guide } from '@/components/guide/Guide';
 import { PetArt, PetCard, useInjury } from '@/components/pet/PetCard';
@@ -11,7 +11,7 @@ import { MergeScene } from '@/components/pet/MergeScene';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { errorMessage, gameApi, type MergeOdds, type MergeResult, type Pet } from '@/lib/api';
-import { PET_TYPE, RARITY } from '@/lib/game';
+import { RARITY, rarityBg } from '@/lib/game';
 import { cn } from '@/lib/utils';
 
 const RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
@@ -35,7 +35,7 @@ function Tile({ p, active, picked, blocked, onClick, onStar }: {
         title={blocked ? `Moc velký rozdíl levelů (víc než ${MAX_LEVEL_GAP})` : undefined}
         className={cn('flex w-full cursor-pointer flex-col items-center rounded-2xl border-2 px-1 pb-2 pt-1 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-35 disabled:grayscale',
           picked ? 'border-trail-yellow bg-trail-yellow/15' : active ? 'border-primary bg-primary/10' : 'border-border bg-card')}
-        style={!picked && !active ? { background: `linear-gradient(to bottom, color-mix(in oklab, ${PET_TYPE[p.type].color} 14%, var(--card)), var(--card) 70%)` } : undefined}>
+        style={!picked && !active ? { background: rarityBg(p.rarity, 30), borderColor: `color-mix(in oklab, ${RARITY[p.rarity].color} 45%, var(--border))` } : undefined}>
         <span className={cn(injured && 'opacity-50 grayscale')}>
           <PetArt type={p.type} type2={p.type2} seed={p.seed} stage={p.stage} rarity={p.rarity} size={72} />
         </span>
@@ -161,11 +161,18 @@ export default function PetsPage() {
           <h1 className="text-3xl font-extrabold">Tvorové</h1>
           {pets && pets.length > 0 && <p className="mt-1 text-muted-foreground">{pets.length} {pets.length === 1 ? 'tvor' : pets.length < 5 ? 'tvorové' : 'tvorů'}</p>}
         </div>
-        {pets && pets.length >= 2 && (
-          <Button variant={breeding ? 'secondary' : 'outline'} onClick={() => { setBreeding((v) => !v); setPair([]); }} aria-pressed={breeding}>
-            {breeding ? <><X className="h-4 w-4" /> Zrušit</> : <><Dna className="h-4 w-4" /> Šlechtit</>}
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {!breeding && (
+            <Link href="/pets/dex" className="inline-flex h-11 items-center gap-2 rounded-xl border border-input bg-card px-4 text-[15px] font-semibold hover:bg-accent">
+              <BookOpen className="h-4 w-4" aria-hidden /> Diář
+            </Link>
+          )}
+          {pets && pets.length >= 2 && (
+            <Button variant={breeding ? 'secondary' : 'outline'} onClick={() => { setBreeding((v) => !v); setPair([]); }} aria-pressed={breeding}>
+              {breeding ? <><X className="h-4 w-4" /> Zrušit</> : <><Dna className="h-4 w-4" /> Šlechtit</>}
+            </Button>
+          )}
+        </div>
       </div>
       {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
       {pets?.length === 0 && (
