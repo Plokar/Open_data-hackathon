@@ -175,7 +175,7 @@ export default function PlacePage() {
       </div>
 
       <p className="mt-8 text-xs text-muted-foreground">
-        Zdroj: <a className="underline" href={place.source_url} target="_blank" rel="noreferrer">DATA ZÁPAD</a>, licence {place.license}.
+        Zdroj: <a className="underline" href={place.source_url} target="_blank" rel="noreferrer">{place.source_url.includes('wikidata.org') ? 'Wikidata' : 'DATA ZÁPAD'}</a>, licence {place.license}.
       </p>
 
       {result && (

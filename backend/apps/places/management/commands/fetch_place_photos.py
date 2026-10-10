@@ -10,7 +10,7 @@ from apps.places.models import Place
 
 def fetch(p: Place, out: Path):
     """Síťová část (běží ve vlákně): najde a stáhne fotku. Do DB nesahá."""
-    wiki, photo = photos.lookup(p.name, p.lat, p.lon, p.category)
+    wiki, photo = photos.lookup(p.name, p.lat, p.lon, p.category, p.extra.get('commons', ''))
     if photo:
         ext = '.png' if photo['thumb'].lower().endswith('.png') else '.jpg'
         path = out / f'{p.id}{ext}'

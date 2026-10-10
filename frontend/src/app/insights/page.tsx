@@ -60,7 +60,7 @@ export default function InsightsPage() {
   return (
     <AppShell>
       <h1 className="text-3xl font-extrabold">Co hráči objevují</h1>
-      <p className="text-sm text-muted-foreground">Anonymní souhrn razítek pro Karlovarský kraj. Bez identity hráčů a bez demo razítek, aktualizace každou minutu.</p>
+      <p className="text-sm text-muted-foreground">Anonymní souhrn razítek pro Karlovarský a Plzeňský kraj. Bez identity hráčů a bez demo razítek, aktualizace každou minutu.</p>
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
       {s && (
         <>

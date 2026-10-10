@@ -139,7 +139,7 @@ class CheckInView(APIView):
                 xp_gain = XP_BY_RARITY[place.rarity]
                 if forgotten:
                     xp_gain = round(xp_gain * FORGOTTEN_XP_MULT)
-                daily = quests.daily_place()
+                daily, _ = quests.daily_place_for(user, lat, lon)
                 if daily and daily.id == place.id:
                     xp_gain *= 2  # quest „Místo dne“
                 # quest „3 místa tento týden“ – razítka jsou unikátní, takže == 3 nastane jednou za týden
@@ -408,7 +408,12 @@ def leaderboard(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def quest_list(request):
-    return Response(quests.quests_for(request.user))
+    """?lat=&lon= (hrubá poloha z prohlížeče, volitelná) určí počasí a místo dne v okolí hráče."""
+    try:
+        lat, lon = float(request.GET['lat']), float(request.GET['lon'])
+    except (KeyError, ValueError):
+        lat = lon = None
+    return Response(quests.quests_for(request.user, lat, lon))
 
 
 @api_view(['GET'])

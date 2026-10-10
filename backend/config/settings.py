@@ -200,7 +200,7 @@ REST_FRAMEWORK = {
 # ── Spectacular / OpenAPI / Swagger ───────────────────────────────────────────
 SPECTACULAR_SETTINGS = {
     'TITLE': 'ZÁPAD GO API',
-    'DESCRIPTION': 'Hra nad otevřenými daty Karlovarského kraje (DATA ZÁPAD).',
+    'DESCRIPTION': 'Hra nad otevřenými daty Karlovarského (DATA ZÁPAD) a Plzeňského kraje (Wikidata).',
     'VERSION': '2.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,

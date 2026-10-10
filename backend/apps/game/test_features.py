@@ -49,7 +49,7 @@ def test_forgotten_bonus_fades_with_visits(api_client):
     api_client.force_authenticate(me)
     r = _checkin(api_client, busy)
     assert r.status_code == 201 and r.data['forgotten'] is False
-    assert r.data['xp_gain'] == 50 * (2 if quests.daily_place() == busy else 1)
+    assert r.data['xp_gain'] == 50 * (2 if quests.daily_place_for(me)[0] == busy else 1)
     _stamp(me, quiet, forgotten=True)
     assert badges.progress({'type': 'forgotten', 'n': 3}, me) == (1, 3)
     assert api_client.get(f'/api/places/{quiet.id}/').data['forgotten'] is True
@@ -70,8 +70,12 @@ def test_weather_classification_and_cache(settings, monkeypatch):
 
     cache.clear()
     body = json.dumps({'daily': {'weather_code': [63], 'precipitation_sum': [4.2]}}).encode()
-    monkeypatch.setattr(urllib.request, 'urlopen', lambda *a, **k: io.BytesIO(body))
-    assert quests.weather_today() == 'rain'
+    urls = []
+    monkeypatch.setattr(urllib.request, 'urlopen', lambda url, **k: urls.append(url) or io.BytesIO(body))
+    assert quests.weather_today(50.08, 12.37) == 'rain'                        # Cheb
+    assert 'latitude=50.00&longitude=12.25' in urls[0]                         # Open-Meteo dostane jen buňku ~25 km
+    quests.weather_today(50.02, 12.30)
+    assert len(urls) == 1                                                      # stejná buňka = stejná předpověď z cache
 
 
 @pytest.mark.django_db
@@ -79,12 +83,31 @@ def test_daily_place_follows_weather(monkeypatch):
     museum = _place(1, 'culture', subtype='Muzea a galerie')
     lookout = _place(2, 'lookout', subtype='Rozhledny')
     castle = _place(3, 'castle', subtype='Hrady a zříceniny')
-    monkeypatch.setattr(quests, 'weather_today', lambda: 'rain')
-    assert quests.daily_place() == museum
-    monkeypatch.setattr(quests, 'weather_today', lambda: 'clear')
-    assert quests.daily_place() == lookout
+    assert quests.daily_place(weather='rain') == museum
+    assert quests.daily_place(weather='clear') == lookout
     lookout.delete()
-    assert quests.daily_place() in (museum, castle)                            # prázdný výběr → celý kraj
+    assert quests.daily_place(weather='clear') in (museum, castle)             # prázdný výběr → celý kraj
+
+
+@pytest.mark.django_db
+def test_daily_place_near_player_and_pinned_for_the_day(api_client, monkeypatch):
+    cheb = _place(1, 'castle')                                                 # Cheb
+    plzen = Place.objects.create(source_item='t', source_layer=0, source_object_id='2', name='Plzeň', category='castle',
+                                 lat=49.7475, lon=13.3776)                     # ~75 km od Chebu
+    near_plzen = (49.73, 13.40)
+    assert quests.daily_place(lat=PLACE.lat, lon=PLACE.lon) == cheb
+    assert quests.daily_place(lat=near_plzen[0], lon=near_plzen[1]) == plzen
+    assert quests.daily_place(lat=48.0, lon=17.0) in (cheb, plzen)             # nic v okolí → celý kraj
+
+    seen = []
+    monkeypatch.setattr(quests, 'weather_today', lambda *a: seen.append(a))
+    me = User.objects.create_user('me', password='x')
+    api_client.force_authenticate(me)
+    daily = {q['code']: q for q in api_client.get(f'/api/quests/?lat={near_plzen[0]}&lon={near_plzen[1]}').data}['daily']
+    assert daily['place_id'] == plzen.id and seen == [near_plzen]              # počasí z polohy hráče
+    assert quests.daily_place_for(me, PLACE.lat, PLACE.lon)[0] == plzen        # dojel do Chebu: místo dne drží
+    assert quests.daily_place_for(User.objects.create_user('praha', password='x'), 50.08, 14.42)[0] in (cheb, plzen)
+    assert seen[-1] == ()                                                      # mimo kraj → výchozí bod, ne Praha
 
 
 @pytest.mark.django_db

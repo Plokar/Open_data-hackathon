@@ -241,3 +241,58 @@ def test_boss_with_friends_on_site(place):
     assert battle.status == 'finished' and battle.winner == 'party'
     assert service.battle_end(battle, 'c')['reward']['pet']['rarity'] == 'legendary'
     assert BossWin.objects.filter(won=True).count() == 2
+
+
+def test_boss_lineup_swaps_and_splits_xp(place):
+    """Sólo sestava 3 tvorů: padlého nahradí další, XP se dělí podle zranění, padlí se 30 min léčí."""
+    from django.utils import timezone
+    from rest_framework.test import APIClient
+    u, p1 = _player('sestava', place)
+    p2, p3 = (Pet.objects.create(owner=u, place=place, verified=True, **pets.generate(place.id, 'castle', 'rare', s, u.id)) for s in 'yz')
+    c = APIClient()
+    c.force_authenticate(u)
+    here = {'lat': 50.0005, 'lon': 12.5, 'accuracy': 5, 'client_ts': int(timezone.now().timestamp() * 1000)}
+    assert c.post(f'/api/battles/bosses/{place.id}/', {**here, 'pet_ids': [p1.id, 999999]}, format='json').data['error_code'] == 'NO_PET'  # cizí / neexistující tvor
+    r = c.post(f'/api/battles/bosses/{place.id}/', {**here, 'pet_ids': [p1.id, p2.id, p3.id]}, format='json')
+    battle = service.Battle.objects.get(pk=r.data['battle_id'])
+    assert battle.status == 'active' and [f['pet'] for f in battle.state['reserve']['a']] == [p2.id, p3.id]
+    assert service.view(battle, 'a')['reserve']['a'][0]['name'] == p2.name
+    fs = battle.state['fighters']
+    fs['a'].update(hp=1, defense=1, spd=999)    # první dá ránu a padne
+    fs['b'].update(hp=500, spd=500, defense=1000)
+    battle.save()
+    service.submit_move(battle.id, u.id, 1, 'attack')
+    battle.refresh_from_db()
+    swap = next(e for e in battle.log[0]['events'] if e['move'] == 'swap')
+    assert swap['fighter']['name'] == p2.name and battle.state['fighters']['a']['pet'] == p2.id
+    assert battle.state['fallen']['a'] == [p1.id] and battle.state['dmg'][str(p1.id)] >= 1
+    battle.state['fighters']['b'].update(hp=1, defense=1, spd=0)   # druhý bosse dorazí
+    battle.save()
+    service.submit_move(battle.id, u.id, 2, 'attack')
+    battle.refresh_from_db()
+    assert battle.status == 'finished' and battle.winner == 'party'
+    end = service.battle_end(battle, 'a')
+    by_id = {x['id']: x for x in end['pets']}
+    assert set(by_id) == {p1.id, p2.id}                               # třetí nebojoval
+    assert sum(x['xp'] for x in end['pets']) <= service.XP['boss'][0] and all(x['xp'] > 0 for x in end['pets'])
+    assert by_id[p1.id]['injured'] and not by_id[p2.id]['injured']    # padlý se léčí, vítěz ne
+    assert end['player_xp'] == service.PLAYER_XP[0]
+    p3.refresh_from_db()
+    assert p3.xp == 0 and p3.injured_until is None
+
+
+def test_loser_still_gets_player_xp(place):
+    from apps.game.models import Profile
+    a, pa = _player('prohra1', place)
+    b, pb = _player('prohra2', place)
+    battle = service.join(service.create_waiting(a, pa, 'friendly').id, b, pb)
+    battle.state['fighters']['b']['hp'] = 1
+    battle.save()
+    service.submit_move(battle.id, a.id, 1, 'attack')
+    service.submit_move(battle.id, b.id, 1, 'attack')
+    battle.refresh_from_db()
+    loser_slot = 'b' if battle.winner == 'a' else 'a'
+    end = service.battle_end(battle, loser_slot)
+    assert end['winner'] == 'opp' and end['player_xp'] == service.PLAYER_XP[1] > 0 and end['xp'] > 0
+    loser = b if loser_slot == 'b' else a
+    assert Profile.objects.get(user=loser).xp == service.PLAYER_XP[1]

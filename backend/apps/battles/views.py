@@ -165,20 +165,25 @@ def _boss_position_error(request, place):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def boss_challenge(request, place_id):
-    """{pet_id, lat, lon, accuracy, client_ts, solo?, demo?} → souboj s bosem; jako u razítka musíš být do 300 m.
-    solo=false otevře čekárnu pro kamarády na místě (přidají se přes odkaz/QR, hostitel spustí)."""
+    """{pet_ids: [1–3] (nebo pet_id), lat, lon, accuracy, client_ts, solo?, demo?} → souboj s bosem; jako u razítka
+    musíš být do 300 m. Sólo se sestavou až 3 tvorů, solo=false otevře čekárnu pro kamarády (s jedním tvorem)."""
     place, spec = bosses.active_at(int(place_id))
     if not place:
         return err('NO_BOSS', 'Tady tento týden žádný boss není.', 404)
-    pet = _pet(request)
-    if not pet:
+    try:
+        ids = [int(x) for x in (request.data.get('pet_ids') or [request.data.get('pet_id')])]
+    except (TypeError, ValueError):
         return err('NO_PET', 'Vyber svého PETa.')
+    owned = Pet.objects.in_bulk(ids, field_name='pk')
+    lineup = [owned[i] for i in dict.fromkeys(ids) if i in owned and owned[i].owner_id == request.user.id]
+    if not lineup or len(lineup) != len(set(ids)) or len(lineup) > bosses.MAX_LINEUP:
+        return err('NO_PET', f'Vyber 1 až {bosses.MAX_LINEUP} své různé tvory.')
     error = _boss_position_error(request, place)
     if error:
         return error
     solo = str(request.data.get('solo', 'true')).lower() in ('1', 'true')
     try:
-        return _created(service.create_boss(request.user, pet, place, spec, bosses.week_start(), solo))
+        return _created(service.create_boss(request.user, lineup, place, spec, bosses.week_start(), solo))
     except service.BattleError as e:
         return err(e.code, e.detail)
 

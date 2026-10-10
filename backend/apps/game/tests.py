@@ -81,10 +81,10 @@ def test_checkin_flow(api_client):
                                            'client_ts': ts, 'photo': _photo()}, format='multipart')
     assert r.status_code == 201, r.data
     assert r.data['pet']['type'] == 'fortress' and r.data['pet']['verified'] is True
-    from .quests import daily_place
+    from .quests import daily_place_for
     # první razítko na nenavštíveném místě je „zapomenuté“: ×1,5 XP
     assert r.data['forgotten'] is True and r.data['trail_done'] is None
-    assert r.data['xp_gain'] == round(75 * 1.5) * (2 if daily_place() == p1 else 1)
+    assert r.data['xp_gain'] == round(75 * 1.5) * (2 if daily_place_for(r.wsgi_request.user)[0] == p1 else 1)
     assert [b['code'] for b in r.data['new_badges']] == ['first']
 
     r = api_client.post('/api/checkins/', {'place': p1.id, 'lat': PLACE.lat, 'lon': PLACE.lon, 'accuracy': 10,

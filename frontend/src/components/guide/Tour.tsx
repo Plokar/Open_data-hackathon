@@ -16,7 +16,7 @@ type Step = { who: GuideId; trail: TrailColor; target?: string; text: (name: str
 // Cíle jsou prvky AppShellu, které jsou na každé stránce. Chybí-li cíl (terč je jen na mapě), bublina je uprostřed.
 const STEPS: Step[] = [
   { who: 'kukadlo', trail: 'red', text: (n) => <>Ahoj {n}! Jsem Kukadlo. Za chvilku ti s Bóžou a Vřídlou ukážeme, co tu najdeš.</> },
-  { who: 'kukadlo', trail: 'blue', target: 'nav a[href="/map"]', text: () => <>Na <b>Mapě</b> jsou stovky míst z celého Karlovarského kraje. Klepni na kterékoli a uvidíš, jak je daleko.</> },
+  { who: 'kukadlo', trail: 'blue', target: 'nav a[href="/map"]', text: () => <>Na <b>Mapě</b> jsou stovky míst z Karlovarského a Plzeňského kraje. Klepni na kterékoli a uvidíš, jak je daleko.</> },
   { who: 'kukadlo', trail: 'blue', target: '[aria-label="Ukázat mou polohu"]', text: () => <>Terčem skočíš na svou polohu. Čárkovaný kruh kolem tebe je <b>dosah 300 metrů</b>, místa v něm můžeš orazítkovat.</> },
   { who: 'boza', trail: 'red', target: 'nav a[href="/pass"]', text: () => <>U místa vyfoť, co vidíš, a dostaneš <b>razítko do Pasu</b>. Za sbírky razítek jsou odznaky.</> },
   { who: 'vridla', trail: 'green', target: 'nav a[href="/pets"]', text: () => <>Z každého razítka se vylíhne <b>tvor</b>. Roste se zkušenostmi, na 3. levelu se vyvine a dva tvory můžeš spojit v nového.</> },

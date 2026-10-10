@@ -66,3 +66,6 @@ htmlcov/
 
 # Zálohy z VPS
 /backups/
+
+# prezentace: video je kopie video/out (52 MB)
+prezentace/*.mp4

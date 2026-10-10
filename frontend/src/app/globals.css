@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Západ GO: turistický pas Karlovarského kraje.
+ * Západ GO: turistický pas Karlovarského a Plzeňského kraje.
  * Paleta vychází z turistických značek KČT (červená, modrá, zelená, žlutá)
  * na papíře s nádechem lišejníku. Světlý režim je výchozí, hraje se venku.
  */

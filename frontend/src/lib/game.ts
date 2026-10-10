@@ -46,6 +46,21 @@ export async function positionPayload(demo = false) {
   return { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy, client_ts: Date.now(), ...(demo ? { demo: true } : {}) };
 }
 
+/**
+ * Hrubá poloha (~1 km) pro počasí a místo dne. Jen když hráč už polohu povolil: stránka s úkoly se nemá ptát sama.
+ * Jinak null a server vezme poslední razítko.
+ */
+export async function coarsePosition(): Promise<{ lat: number; lon: number } | null> {
+  try {
+    if ((await navigator.permissions?.query({ name: 'geolocation' }))?.state !== 'granted') return null;
+    const pos = await new Promise<GeolocationPosition>((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: false, maximumAge: 30 * 60_000, timeout: 5000 }));
+    return { lat: +pos.coords.latitude.toFixed(2), lon: +pos.coords.longitude.toFixed(2) };
+  } catch {
+    return null;
+  }
+}
+
 /** Přesná poloha pro razítko a výzvu bosse (ověřuje server). */
 export function position(): Promise<GeolocationPosition> {
   return new Promise((res, rej) => {

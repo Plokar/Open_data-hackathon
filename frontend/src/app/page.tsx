@@ -66,9 +66,9 @@ export default function Home() {
         </div>
         <div className="bg-[var(--hill-near)] text-[#f6f8f1]">
           <div className="mx-auto max-w-xl px-5 pb-10 pt-4">
-            <h1 className="text-[2.75rem] font-extrabold leading-[0.98] tracking-[-0.035em]">Kraj, který se dá sbírat.</h1>
+            <h1 className="text-[2.75rem] font-extrabold leading-[0.98] tracking-[-0.035em]">Západ, který se dá sbírat.</h1>
             <p className="mt-4 max-w-[34ch] text-[17px] leading-relaxed text-[#f6f8f1]/85">
-              Hrady, rozhledny a prameny Karlovarského kraje. Dojdi na místo, vyfoť ho a dostaneš razítko do Pasu.
+              Hrady, rozhledny a prameny Karlovarského a Plzeňského kraje. Dojdi na místo, vyfoť ho a dostaneš razítko do Pasu.
               Z každého razítka se ti vylíhne tvor.
             </p>
             <Link href={cta.href}
@@ -100,7 +100,7 @@ export default function Home() {
       <section className="border-y border-border bg-card" aria-labelledby="co">
         <div className="mx-auto max-w-xl px-5 py-10">
           <h2 id="co" className="text-2xl font-extrabold">{total ? `${total} míst, kam se dá dojít` : 'Místa, kam se dá dojít'}</h2>
-          <p className="mt-2 text-muted-foreground">Všechno z veřejných dat Karlovarského kraje na portálu DATA ZÁPAD.</p>
+          <p className="mt-2 text-muted-foreground">Všechno z otevřených dat: Karlovarský kraj z portálu DATA ZÁPAD, Plzeňský kraj z Wikidat.</p>
           <ul className="mt-5 grid grid-cols-2 gap-x-6">
             {(Object.keys(CATEGORY) as Category[]).map((c) => {
               const { Icon, label, color } = CATEGORY[c];
@@ -128,7 +128,7 @@ export default function Home() {
       </section>
 
       <footer className="mx-auto max-w-xl px-5 pb-10 text-xs leading-relaxed text-muted-foreground">
-        Data: <a className="underline" href="https://www.datazapad.cz" target="_blank" rel="noreferrer">DATA ZÁPAD</a> (Karlovarský kraj, CC0), mapa © OpenStreetMap.
+        Data: <a className="underline" href="https://www.datazapad.cz" target="_blank" rel="noreferrer">DATA ZÁPAD</a> (Karlovarský kraj, CC0), <a className="underline" href="https://www.wikidata.org" target="_blank" rel="noreferrer">Wikidata</a> (Plzeňský kraj, CC0), mapa a zastávky Plzeňského kraje © OpenStreetMap.
         Vzniklo na Hackathonu Karlovarského kraje 2026. <Link className="underline" href="/privacy">Soukromí</Link>, <Link className="underline" href="/insights">co hráči objevují</Link>.
       </footer>
     </div>

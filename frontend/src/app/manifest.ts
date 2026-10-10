@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'ZÁPAD GO – hra nad daty Karlovarského kraje',
+    name: 'ZÁPAD GO – hra nad daty Karlovarského a Plzeňského kraje',
     short_name: 'ZÁPAD GO',
-    description: 'Sbírej razítka a PETy na místech Karlovarského kraje.',
+    description: 'Sbírej razítka a PETy na místech Karlovarského a Plzeňského kraje.',
     lang: 'cs',
     start_url: '/map',
     display: 'standalone',

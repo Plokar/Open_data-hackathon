@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CircleCheck, Target } from 'lucide-react';
 import { teamApi, type Quest } from '@/lib/api';
+import { coarsePosition } from '@/lib/game';
 import { cn } from '@/lib/utils';
 
 export function QuestList() {
   const [quests, setQuests] = useState<Quest[]>([]);
   useEffect(() => {
-    teamApi.quests().then(setQuests).catch(() => {});
+    coarsePosition().then(teamApi.quests).then(setQuests).catch(() => {});
   }, []);
   if (!quests.length) return <p className="mt-2 text-muted-foreground">Úkoly se objeví po prvním razítku.</p>;
 

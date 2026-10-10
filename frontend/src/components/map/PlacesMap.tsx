@@ -52,7 +52,7 @@ export default function PlacesMap({ features, stamped, onSelect, onLocate, cente
   });
 
   useEffect(() => {
-    // Jen Karlovarský kraj: dál se neposune, dlaždice mimo něj se nestahují a zbytek světa zakryje maska
+    // Jen Karlovarský a Plzeňský kraj: dál se neposune, dlaždice mimo něj se nestahují a zbytek světa zakryje maska
     const kraj = L.latLngBounds(KRAJ).pad(0.08);
     const m = L.map(el.current!, { maxBounds: kraj, maxBoundsViscosity: 1, preferCanvas: true, zoomControl: false });
     // Na telefonu se celý kraj vejde až na zoomu 8 a je drobný, proto start na 9 a oddálit jde jen na celý kraj
@@ -63,7 +63,7 @@ export default function PlacesMap({ features, stamped, onSelect, onLocate, cente
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       bounds: kraj,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · data © DATA ZÁPAD (CC0)',
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · data © DATA ZÁPAD a Wikidata (CC0)',
     }).addTo(m);
     // ponytail: bez +/- tlačítek, na telefonu se zoomuje prsty a na desktopu kolečkem
     layer.current = L.layerGroup().addTo(m);
@@ -129,5 +129,5 @@ export default function PlacesMap({ features, stamped, onSelect, onLocate, cente
     if (centerOnMe && me.current && map.current) map.current.setView(me.current.getLatLng(), 14);
   }, [centerOnMe]);
 
-  return <div ref={el} className="h-full w-full" role="application" aria-label="Mapa míst Karlovarského kraje" />;
+  return <div ref={el} className="h-full w-full" role="application" aria-label="Mapa míst Karlovarského a Plzeňského kraje" />;
 }

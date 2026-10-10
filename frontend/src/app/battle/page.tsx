@@ -102,10 +102,10 @@ export default function BattleLobby() {
               <li>Každý tah stojí <b className="text-foreground">výdrž</b>, po tahu se kousek obnoví. <b className="text-foreground">Útok</b> je zdarma a vždy zasáhne, <b className="text-foreground">Silný úder</b> je silnější, ale netrefí se vždy.</li>
               <li><b className="text-foreground">Obrana</b> sníží další zásah na polovinu a obnoví víc výdrže. Tvor typu Chuť se navíc vyléčí o 10 %.</li>
               <li><b className="text-foreground">Kouzla</b> jsou podle typu tvora a berou sílu z Magie. Každá evoluce odemkne silnější kouzlo.</li>
-              <li>Výhry i prohry dávají tvorovi XP. Kdo prohraje, je <b className="text-foreground">30 minut zraněný</b> a nemůže bojovat.</li>
+              <li>Výhry i prohry dávají XP tvorovi i tobě. Kdo prohraje nebo padne, je <b className="text-foreground">30 minut zraněný</b> a nemůže bojovat.</li>
               <li>Pevnost přebíjí Výhled, ten Přírodu, ta Pramen, ten Kulturu a Kultura zase Pevnost. Výhodný typ dává 1,5× větší zásah.</li>
               <li>Ve skupinovém souboji si u útoku vybereš, na koho míříš. Padlý tvor už nebojuje, ve 2v2 za něj pokračuje parťák.</li>
-              <li>Bosové se objevují na mapě, každý týden jinde. Vyzvat je můžeš jen na místě (do 300 m), sám nebo až se dvěma kamarády, a s každým jednou za týden. Za výhru je legendární tvor.</li>
+              <li>Bosové se objevují na mapě, každý týden jinde. Vyzvat je můžeš jen na místě (do 300 m), sám se sestavou až 3 tvorů (padlého nahradí další), nebo až se dvěma kamarády, a s každým jednou za týden. Za výhru je legendární tvor, XP si sestava rozdělí podle zranění.</li>
               <li>Na tah máš 25 sekund, pak za tebe server zahraje Útok. Všechno počítá server.</li>
             </ul>
           </details>

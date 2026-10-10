@@ -9,16 +9,20 @@ from django.core.cache import cache
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.places.importer import BBOX
 from apps.places.models import Place
 
 from .models import CheckIn
 
-# ponytail: jeden bod (Karlovy Vary) pro celý kraj, předpověď po obcích by byla zbytečně přesná
-WEATHER_URL = ('https://api.open-meteo.com/v1/forecast?latitude=50.23&longitude=12.87'
+# Počasí po buňkách ~25 km kolem hráče: předpověď sedí na jeho okolí a Open-Meteo dostane jen hrubou polohu, ne přesnou
+WEATHER_CELL = 0.25
+WEATHER_URL = ('https://api.open-meteo.com/v1/forecast?latitude={lat:.2f}&longitude={lon:.2f}'
                '&daily=weather_code,precipitation_sum&timezone=Europe%2FPrague&forecast_days=1')
+DEFAULT_POS = (49.7, 12.97)  # střed Karlovarského a Plzeňského kraje, když o poloze hráče nic nevíme
+NEAR_DEG = (0.27, 0.42)      # ~30 km: místo dne je v dosahu hráče, ne na druhém konci kraje
 # počasí → z jakých míst se vybírá místo dne (v dešti pod střechu, za jasna na výhled)
 WEATHER_POOL = {
-    'rain': Q(subtype__in=('Muzea a galerie', 'Solné jeskyně', 'Divadla')),
+    'rain': Q(subtype__in=('Muzea a galerie', 'Muzea', 'Solné jeskyně', 'Divadla')),  # 'Muzea' = Plzeňský kraj
     'clear': Q(category='lookout'),
 }
 WEATHER_HINT = {'rain': 'Dnes prší, tak doporučujeme něco pod střechou', 'clear': 'Dnes bude jasno, vyraz na výhled'}
@@ -33,34 +37,64 @@ def classify_weather(code, rain_mm):
     return None
 
 
-def weather_today():
-    """Počasí na dnešek, po celý den stejné díky cache (místo dne se nesmí měnit pod rukama). Při chybě None."""
+def in_region(lat, lon):
+    """Poloha uvnitř obdélníku obou krajů. Hráč z Prahy dostane počasí a místo dne jako by o něm nic nevíme."""
+    return lat is not None and lon is not None and (
+        BBOX['lat'][0] <= lat <= BBOX['lat'][1] and BBOX['lon'][0] <= lon <= BBOX['lon'][1])
+
+
+def weather_today(lat=DEFAULT_POS[0], lon=DEFAULT_POS[1]):
+    """Počasí na dnešek v okolí polohy, po celý den stejné díky cache (místo dne se nesmí měnit pod rukama). Při chybě None."""
     if not settings.WEATHER_ENABLED:
         return None
-    key = f'weather:{timezone.localdate()}'
+    lat, lon = (round(v / WEATHER_CELL) * WEATHER_CELL for v in (lat, lon))
+    key = f'weather:{timezone.localdate()}:{lat:.2f}:{lon:.2f}'
     w = cache.get(key)
     if w is None:
         try:
-            with urllib.request.urlopen(WEATHER_URL, timeout=2) as r:
+            with urllib.request.urlopen(WEATHER_URL.format(lat=lat, lon=lon), timeout=2) as r:
                 d = json.load(r)['daily']
             w, ttl = classify_weather(d['weather_code'][0], d['precipitation_sum'][0] or 0) or 'none', 86400
         except Exception:  # síť, JSON i chybějící pole: hra musí běžet dál
-            # ponytail: po výpadku to za 5 min zkusí znovu, místo dne se tím může jednou změnit
-            w, ttl = 'none', 300
+            w, ttl = 'none', 300  # po výpadku to za 5 min zkusí znovu
         cache.set(key, w, ttl)
     return None if w == 'none' else w
 
 
-def daily_place(day=None):
-    """Doporučené místo dne – deterministicky z data (a dnešního počasí), stejné pro všechny hráče."""
-    weather = weather_today() if day is None else None
+def daily_place(day=None, lat=None, lon=None, weather=None):
+    """Místo dne deterministicky z data: z míst do ~30 km od polohy (když nějaká jsou) a podle počasí."""
     base = Place.objects.filter(is_hazardous=False)
+    if lat is not None:
+        near = base.filter(lat__range=(lat - NEAR_DEG[0], lat + NEAR_DEG[0]), lon__range=(lon - NEAR_DEG[1], lon + NEAR_DEG[1]))
+        base = near if near.exists() else base
     ids = list((base.filter(WEATHER_POOL[weather]) if weather else base).order_by('id').values_list('id', flat=True))
     ids = ids or list(base.order_by('id').values_list('id', flat=True))
     if not ids:
         return None
     day = day or timezone.localdate()
     return Place.objects.get(pk=ids[int(hashlib.sha256(day.isoformat().encode()).hexdigest(), 16) % len(ids)])
+
+
+def daily_place_for(user, lat=None, lon=None):
+    """
+    (místo dne, počasí) pro hráče. Poprvé za den se určí podle polohy z prohlížeče, jinak podle posledního razítka,
+    a pak drží do půlnoci: razítko na místě dne musí dát bonus, i když hráč mezitím dojel jinam.
+    """
+    key = f'daily:{timezone.localdate()}:{user.id}' if user.is_authenticated else None
+    pinned = key and cache.get(key)
+    if pinned:
+        return Place.objects.filter(pk=pinned['place']).first(), pinned['weather']
+    if not in_region(lat, lon) and user.is_authenticated:
+        last = CheckIn.objects.filter(user=user).values('lat', 'lon').first()  # řazení -created_at = poslední
+        lat, lon = (last['lat'], last['lon']) if last else (None, None)
+    if not in_region(lat, lon):
+        lat = lon = None
+    # ponytail: pin v cache, ne v DB; po vymazání cache se místo dne přepočítá (stejně, pokud se hráč nepohnul)
+    weather = weather_today(lat, lon) if lat is not None else weather_today()
+    place = daily_place(lat=lat, lon=lon, weather=weather)
+    if key and place:
+        cache.set(key, {'place': place.id, 'weather': weather}, 86400)
+    return place, weather
 
 
 def week_start():
@@ -155,9 +189,8 @@ def tasted_count(user):
     return sum(c['tasted'] for c in food_pass(user))
 
 
-def quests_for(user):
-    place = daily_place()
-    weather = weather_today()
+def quests_for(user, lat=None, lon=None):
+    place, weather = daily_place_for(user, lat, lon)
     stamps = CheckIn.objects.filter(user=user) if user.is_authenticated else CheckIn.objects.none()
     week = stamps.filter(created_at__date__gte=week_start()).count()
     food = stamps.filter(place__category='food').count()

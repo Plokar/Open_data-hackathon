@@ -31,6 +31,59 @@ def test_food_grouped_by_producer():
     assert [x['name'] for x in places[0]['extra']['products']] == ['Paštika', 'Klobása']
 
 
+def _wd(qid, label, typ, coord='Point(13.3 49.6)', **kw):
+    b = {'item': f'http://www.wikidata.org/entity/{qid}', 'itemLabel': label, 'type': f'http://www.wikidata.org/entity/{typ}',
+         'coord': coord, 'okresLabel': 'okres Plzeň-jih', 'obecLabel': 'Nebílovy', **kw}
+    return {k: {'value': v} for k, v in b.items()}
+
+
+def test_wikidata_plzen_dedupes_types_and_maps_rarity():
+    rows = [
+        _wd('Q1', 'Zámek Nebílovy', 'Q33506'),                                    # muzeum…
+        _wd('Q1', 'Zámek Nebílovy', 'Q751876', nkp='1',                           # …i zámek: vyhraje zámek
+            img='http://commons.wikimedia.org/wiki/Special:FilePath/Neb%C3%ADlovy%20z%C3%A1mek.jpg'),
+        _wd('Q2', 'Q2', 'Q16970'),                                                # bez názvu
+        _wd('Q3', 'Hradiště Věžka', 'Q744099', coord='Point(16.6 49.2)'),          # mimo kraj
+        _wd('Q4', 'hradiště Hradec', 'Q744099'),
+        _wd('Q5', 'Kostel svatého Mikuláše', 'Q16970', obecLabel='Čečovice'),
+        _wd('Q6', 'Kostel svatého Mikuláše', 'Q16970', obecLabel='Kašperské Hory'),
+    ]
+    places, skipped = importer.parse_wikidata(rows)
+    assert skipped == 2
+    zamek, hradiste, *kostely = sorted(places, key=lambda p: p['source_object_id'])
+    assert hradiste['name'] == 'Hradiště Hradec'
+    assert [k['name'] for k in kostely] == ['Kostel svatého Mikuláše (Čečovice)', 'Kostel svatého Mikuláše (Kašperské Hory)']
+    assert (zamek['category'], zamek['subtype'], zamek['rarity'], zamek['okres']) == ('castle', 'Zámky', 'epic', 'Plzeň-jih')
+    assert zamek['extra'] == {'commons': 'Nebílovy zámek.jpg'} and zamek['source_object_id'] == 'Q1'
+    assert (hradiste['category'], hradiste['rarity'], hradiste['is_hazardous']) == ('heritage', 'common', True)
+
+
+def test_osm_stops_merge_both_directions():
+    data = {'elements': [{'lat': 49.74751, 'lon': 13.37761, 'tags': {'name': 'Plzeň, Hlavní nádraží'}},
+                         {'lat': 49.74760, 'lon': 13.37770, 'tags': {'name': 'Plzeň, Hlavní nádraží'}},
+                         {'lat': 49.7, 'lon': 13.3, 'tags': {}}]}
+    assert importer.parse_osm_stops(data) == [('Plzeň, Hlavní nádraží', 49.74751, 13.37761)]
+
+
+@pytest.mark.django_db
+def test_reimport_keeps_fetched_photo():
+    from apps.places.management.commands.import_places import Command
+    from apps.places.models import Place
+    places, _ = importer.parse_wikidata([_wd('Q4', 'Hradiště Hradec', 'Q744099')])
+    Command()._save([dict(p) for p in places])
+    Place.objects.update(extra={'photo': {'url': '/media/places/1.jpg'}, 'photo_checked': True})
+    Command()._save([{**p, 'name': 'Hradiště Hradec u Plzně'} for p in places])
+    p = Place.objects.get()
+    assert p.name == 'Hradiště Hradec u Plzně' and p.extra['photo_checked'] and 'photo' in p.extra
+
+
+def test_duplicate_xy_columns_take_wgs84():
+    # Aquaparky: x,y nejdřív ve WGS84, pak znovu v Web Mercatoru
+    rows = importer.read_csv('objekt_id,název,název_okresu,x,y,x,y\n1,Aquaforum,Cheb,12.35,50.12,1374736.1,6458321.4\n')
+    places, skipped = importer.parse_layer(rows, 'nature', 'Aquaparky, koupaliště a bazény', 'x', 0, 'common', False)
+    assert skipped == 0 and (places[0]['lon'], places[0]['lat']) == (12.35, 50.12)
+
+
 def test_layer_without_coordinates_raises():
     with pytest.raises(ValueError):
         importer.parse_layer(importer.read_csv('název,x2,y2\nA,1,2\n'), 'nature', 'Aquaparky', 'x', 0, 'common', False)

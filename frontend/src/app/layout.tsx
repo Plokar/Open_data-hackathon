@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     default: appName,
     template: `%s | ${appName}`,
   },
-  description: 'Turistický pas Karlovarského kraje: sbírej razítka z hradů, rozhleden a pramenů a z každého ti vyroste tvor do souboje.',
+  description: 'Turistický pas Karlovarského a Plzeňského kraje: sbírej razítka z hradů, rozhleden a pramenů a z každého ti vyroste tvor do souboje.',
   icons: { icon: '/icon.svg', apple: '/icon-192.png' },
 };
 

@@ -302,7 +302,7 @@ export default function BattlePage() {
 
       {s && s.status !== 'waiting' && s.fighters.length >= 2 && (
         <div className="mt-2">
-          <Arena fighters={s.fighters} results={results} onBusy={setAnimating} />
+          <Arena fighters={s.fighters} results={results} onBusy={setAnimating} reserve={s.reserve} />
           {s.status === 'active' && (
             <div className="mt-2 flex items-center justify-between text-sm font-semibold">
               <span>Tah {s.turn}{group && s.waiting_for.length > 0 && !s.waiting_for_you && <span className="font-normal text-muted-foreground">, čeká se na: {s.waiting_for.join(', ')}</span>}</span>
@@ -365,8 +365,18 @@ export default function BattlePage() {
             </div>
             {group && end.winner !== 'draw' && <div className="mt-1 text-sm">Vyhráli: <b>{end.winners.join(', ')}</b></div>}
             <div className="mt-1 text-sm text-muted-foreground">
-              Tvůj tvor +{end.xp} XP{end.rating_delta ? `, hodnocení ${end.rating_delta > 0 ? '+' : ''}${end.rating_delta}` : ''}
+              Ty +{end.player_xp} XP{end.pets.length <= 1 && `, tvůj tvor +${end.xp} XP`}{end.rating_delta ? `, hodnocení ${end.rating_delta > 0 ? '+' : ''}${end.rating_delta}` : ''}
             </div>
+            {end.pets.length > 1 && (
+              <ul className="mt-3 space-y-1 rounded-xl bg-muted p-2 text-left text-sm" aria-label="XP pro sestavu podle zranění">
+                {end.pets.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate"><b>{p.name}</b> <span className="text-xs text-muted-foreground">zranění {p.damage}</span></span>
+                    <span className="shrink-0 tabular-nums">+{p.xp} XP{p.injured && ' 🩹'}{p.level_up && ` · lvl ${p.level_up}`}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {end.reward?.pet && (
               <div className="mt-4 text-left">
                 <div className="mb-2 text-center font-hand text-xl text-primary">Trofej: legendární tvor!</div>
@@ -380,7 +390,7 @@ export default function BattlePage() {
             {end.can_evolve && <div className="mt-2 rounded-xl bg-primary/15 py-2 text-sm font-bold text-primary">✦ Tvůj tvor je připravený na evoluci!</div>}
             {end.injured_until && (
               <div className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-destructive/10 py-2 text-sm font-semibold text-destructive">
-                <Bandage className="h-4 w-4" aria-hidden /> Tvor je zraněný, 30 min se léčí
+                <Bandage className="h-4 w-4" aria-hidden /> {end.pets.filter((p) => p.injured).length > 1 ? 'Padlí tvorové se 30 min léčí' : 'Tvor je zraněný, 30 min se léčí'}
               </div>
             )}
             <div className="mt-4 grid grid-cols-2 gap-2">

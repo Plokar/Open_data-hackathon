@@ -184,7 +184,7 @@ class Particles {
 
 // ── Bojovník ─────────────────────────────────────────────────────────────────
 interface Fighter {
-  side: Side; front: boolean; info: BattleFighter; group: Container; sprite: Sprite; size: number; base: Pt;
+  side: Side; front: boolean; info: BattleFighter; group: Container; sprite: Sprite; size: number; base: Pt; sc: number;
   overlay: ColorOverlayFilter; glow: GlowFilter; idle: gsap.core.Tween; el: (typeof ELEMENT)[PetType];
 }
 const center = (f: Fighter): Pt => ({ x: f.group.x + f.sprite.x, y: f.group.y + f.sprite.y - f.size * 0.4 });
@@ -200,6 +200,7 @@ async function petTexture(info: BattleFighter, back: boolean) {
 export interface Hooks {
   say: (text: string) => void;
   change: (side: Side, delta: { hp?: number; sp?: number }) => void;
+  swap?: (side: Side, fighter: BattleFighter) => void; // ze sestavy nastoupil další tvor
 }
 
 export class BattleScene {
@@ -288,7 +289,7 @@ export class BattleScene {
       group.addChild(sprite);
       const sc = sprite.scale.x;
       const idle = this.to(sprite.scale, { y: sc * 1.035, x: sc * 0.985, duration: rand(1.1, 1.5), yoyo: true, repeat: -1, ease: 'sine.inOut' });
-      return { side: info.slot, front: isFront, info, group, sprite, size, base: { x, y }, overlay, glow, idle, el };
+      return { side: info.slot, front: isFront, info, group, sprite, size, base: { x, y }, sc, overlay, glow, idle, el };
     };
     // Rozestavení: vzadu 1–2 soupeři (boss větší), vpředu ty a případně spojenec
     const BACK = back.length === 1
@@ -682,7 +683,34 @@ export class BattleScene {
     }
   }
 
+  /** Sestava na bosse: padlého nahradí další tvor – přiběhne na plošinu se zábleskem. */
+  private async swapIn(f: Fighter, info: BattleFighter, hooks: Hooks, hp: Record<Side, number>) {
+    const tex = await petTexture(info, f.front);
+    if (this.dead) return;
+    f.info = info;
+    f.el = ELEMENT[info.type];
+    f.sprite.texture = tex;
+    f.idle.kill();
+    f.sprite.scale.set(f.sc);
+    Object.assign(f.sprite, { x: f.front ? -140 : 140, y: 0, rotation: 0, alpha: 0 });
+    f.overlay.alpha = 0;
+    hooks.swap?.(f.side, info);
+    hooks.say(`Na řadu jde ${info.name}!`);
+    this.cam(feet(f), 1.06, 0.4);
+    await this.timeline().to(f.sprite, { x: 0, alpha: 1, duration: 0.55, ease: 'back.out(1.6)' });
+    this.flash(f, f.el.main, 1);
+    this.parts.emit(feet(f).x, feet(f).y - 10, { count: 22, shape: 'spark', colors: [f.el.main, 0xffffff], speed: [60, 200], angle: [200, 340], scale: [0.15, 0.4] });
+    f.idle = this.to(f.sprite.scale, { y: f.sc * 1.035, x: f.sc * 0.985, duration: rand(1.1, 1.5), yoyo: true, repeat: -1, ease: 'sine.inOut' });
+    hp[f.side] = info.hp;
+    await wait(0.6);
+    this.cam(null);
+  }
+
   private async playEvent(e: TurnEvent, hp: Record<Side, number>, hooks: Hooks) {
+    if (e.move === 'swap') {
+      if (e.fighter && this.f[e.actor]) await this.swapIn(this.f[e.actor], e.fighter, hooks, hp);
+      return;
+    }
     const A = this.f[e.actor];
     // cíl z události, jinak první soupeř (ve 2v2 / ffa se neútočí na spojence)
     const T = this.f[e.target ?? ''] ?? Object.values(this.f).find((f) => f.front !== A?.front && f.side !== A?.side);

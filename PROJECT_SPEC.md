@@ -125,6 +125,12 @@ Portál DATA ZÁPAD je ArcGIS Hub s otevřeným API bez klíče:
 - Seznam obcí a ORP – z polí v CSV (kód obce ČSÚ je společný klíč).
 - Nemocnice (`03dbe5719ab64960ae70ee90af4790c6`, 3) a lékařská pohotovost (`72aa9de6abc94f949f3959e70e0d241d`, 0): mimo MVP, nepřidávat do hry.
 
+### 5.1b Plzeňský kraj
+
+Krajský portál `opendata.plzensky-kraj.cz/pamatky` má 3 300 památek, ale **bez souřadnic** a bez společného ID s NPÚ, proto se nepoužívá. Místa se berou z **Wikidat** (CC0, SPARQL v `importer.WIKIDATA_QUERY`): hrady, zříceniny, zámky, tvrze, rozhledny, kláštery, muzea, synagogy, kostely, židovské hřbitovy, PR/PP, vodopády a hradiště (nebezpečná jako archeologie v 5.1). Bez článku na cs.wikipedii se berou jen rozhledny a vodopády. NKP → `epic`, fotka P18 jde do `extra.commons` a `fetch_place_photos` ji bere přednostně. Výsledek je zhruba 860 míst ve všech 7 okresech, `source_item = wikidata-plzensky-kraj`.
+
+Zastávky Plzeňského kraje jsou z **OpenStreetMap** (Overpass, ODbL), protože DATA ZÁPAD má jen karlovarské. Když jeden zdroj zastávek selže, místa jeho kraje si nechají staré `nearest_stop_*`.
+
 ### 5.2 Importér (Workstream A)
 
 - `python manage.py import_places` stáhne vrstvy z 5.1, normalizuje a uloží do DB (`update_or_create` podle `(source_item, source_layer, source_object_id)`).
@@ -231,7 +237,7 @@ Seznam odznaků se plní z fixture; každý nový odznak = jeden záznam, žádn
 Vše se počítá z existujících dat, kromě `CheckIn.forgotten` bez nových tabulek (`apps/game/quests.py`).
 
 - **Zapomenutá místa:** místo s nejvýše 2 skutečnými razítky (bez demo, nikdy `is_hazardous`) dá ×1,5 XP; razítko si uloží `forgotten=True`. Odznak „Objevitel“ (3×). `/api/stats/places/` vrací `forgotten_stamps` jako měřítko rozložení turistů.
-- **Místo dne podle počasí:** server si jednou denně vezme předpověď z Open-Meteo (bez klíče, bod Karlovy Vary, cache na den). Déšť → muzea, solné jeskyně, divadla. Jasno → rozhledny. Při výpadku nebo `WEATHER_ENABLED=False` platí původní výběr podle data. Open-Meteo je externí zdroj dat, ne AI.
+- **Místo dne podle počasí a polohy hráče:** poloha z prohlížeče (jen když ji hráč už povolil, zaokrouhlená na ~1 km), jinak poslední razítko, jinak střed obou krajů. Open-Meteo (bez klíče) dostane jen buňku ~25 km, předpověď se cachuje na den a buňku. Místo dne se vybírá z míst do ~30 km od hráče a pro hráče se na den připne (bonus u razítka sedí, i když hráč mezitím popojel). Déšť → muzea, solné jeskyně, divadla. Jasno → rozhledny. Při výpadku nebo `WEATHER_ENABLED=False` platí původní výběr podle data. Open-Meteo je externí zdroj dat, ne AI.
 - **Výpravy bez auta:** 3–4 různé druhy míst do 500 m od jedné autobusové zastávky (bez `info` a nebezpečných). Dokončení dá odznaky „První výprava“ a „Cestovatel bez auta“ (3×) a tvora o stupeň vzácnějšího, než odpovídá místu.
 - **Dobrotový pas:** 5 druhů oceněných Dobrot (z `Place.extra.products[].category`, „Cukrářské výrobky“ se slévají s pekařskými, „Ostatní“ se ignoruje). Odznaky „Gurmán“ (3 druhy), „Mistr chutí“ (5). Ověřuje se návštěva výrobce, ne nákup.
 - **Koupací místa:** data kraje nenesou změřenou kvalitu vody, jen druh místa a vybavení (`extra.swim`). Kvalita je odkaz na web KHS. Sezónní odznak „Koupací sezóna“ (3 koupací místa v červnu–srpnu).

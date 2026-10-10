@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Západ GO · KOREX</title>
+<style>
+/* Písma aplikace (Bricolage Grotesque, Caveat), lokálně kvůli offline projekci */
+@font-face { font-family: 'Bricolage Grotesque'; font-style: normal; font-weight: 400 800; font-stretch: 100%; font-display: block; src: url(fonts/bricolage-latin-ext.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'Bricolage Grotesque'; font-style: normal; font-weight: 400 800; font-stretch: 100%; font-display: block; src: url(fonts/bricolage-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Caveat'; font-style: normal; font-weight: 600 700; font-display: block; src: url(fonts/caveat-latin-ext.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'Caveat'; font-style: normal; font-weight: 600 700; font-display: block; src: url(fonts/caveat-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+/* Paleta z frontend/src/app/globals.css: turistické značky KČT na papíře s nádechem lišejníku */
+:root {
+  --bg: #f2f4ec; --fg: #1c2b22; --card: #fbfcf8; --muted: #56645a; --border: #d3dacb; --secondary: #e4e9dc;
+  --primary: #2e6a47; --cream: #f6f8f1;
+  --trail-red: #c2362f; --trail-blue: #2f6fa8; --trail-green: #2e8a4e; --trail-yellow: #e2b13c;
+  --hill-far: #d5dccb; --hill-mid: #a9bfa6; --hill-near: #2e6a47; --tree: #3c7a55;
+  --sans: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --hand: 'Caveat', cursive;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); -webkit-font-smoothing: antialiased; transition: background-color .6s; }
+body[data-theme="video"] { background: #000; }
+body[data-theme="night"] { background: #13201a; }
+body.idle { cursor: none; }
+
+/* Plátno 1920 × 1080, škáluje se na okno */
+#stage { position: fixed; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: center; overflow: hidden; }
+.slide { position: absolute; inset: 0; background: var(--bg); opacity: 0; visibility: hidden; transition: opacity .6s var(--ease), visibility 0s .6s; padding: 84px 120px 0; }
+.slide.on { opacity: 1; visibility: visible; transition: opacity .6s var(--ease); }
+.slide.slow.on { transition-duration: 1.4s; }
+
+/* Nástup prvků, choreografie z aplikace (step-in, hop-in, stamp-down) */
+.in { opacity: 0; }
+.slide.on .in { animation: rise .7s var(--ease) both; animation-delay: calc(var(--d, 0) * 110ms + 150ms); }
+.slide.on .hop { animation: hop-in .8s var(--ease) both; animation-delay: calc(var(--d, 0) * 150ms + 500ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes hop-in { 0% { transform: translateY(40px) scale(.92); opacity: 0; } 60% { transform: translateY(-8px) scale(1.02); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .slide.on .in, .slide.on .hop { animation: none; opacity: 1; } }
+
+/* Typografie */
+.kicker { display: flex; align-items: center; gap: 14px; font-size: 28px; font-weight: 700; color: var(--muted); }
+h1, h2 { font-weight: 800; letter-spacing: -0.035em; line-height: 0.98; text-wrap: balance; }
+h2 { font-size: 88px; margin-top: 22px; max-width: 1500px; }
+.lead { font-size: 34px; line-height: 1.35; color: var(--muted); max-width: 30ch; }
+.hand { font-family: var(--hand); font-weight: 600; color: var(--primary); line-height: 1.05; }
+.num { font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; line-height: 0.9; }
+
+/* Turistická značka: bílá, barva, bílá */
+.mark { width: 1.45em; height: 1em; flex-shrink: 0; border-radius: 3px; background: linear-gradient(#fbfcf8 0 33%, var(--c, var(--trail-red)) 33% 67%, #fbfcf8 67%); box-shadow: inset 0 0 0 1.5px rgb(28 43 34 / .18); }
+.mark.red { --c: var(--trail-red); } .mark.blue { --c: var(--trail-blue); } .mark.green { --c: var(--trail-green); } .mark.yellow { --c: var(--trail-yellow); }
+
+/* Rámeček telefonu kolem screenshotu (412 × 892 CSS px), jako ve videu */
+.phone { --w: 300px; width: calc(var(--w) * 1.07); padding: calc(var(--w) * .035); border-radius: calc(var(--w) * .14); background: #0a0d0b; box-shadow: 0 0 0 2px #2a302c, 0 40px 70px -30px rgb(28 43 34 / .55); flex-shrink: 0; }
+.phone img { display: block; width: var(--w); height: calc(var(--w) * 892 / 412); border-radius: calc(var(--w) * .11); object-fit: cover; object-position: top; }
+.cap { margin-top: 14px; font-size: 20px; color: var(--muted); }
+
+/* Bublina průvodce (components/guide/Guide.tsx) */
+.guide { display: flex; align-items: flex-end; gap: 10px; }
+.guide svg { width: 120px; height: 120px; flex-shrink: 0; margin-bottom: -6px; }
+.bubble { background: var(--card); border: 1.5px solid var(--border); border-radius: 26px 26px 26px 8px; padding: 16px 24px 18px; box-shadow: 0 10px 24px -16px rgb(28 43 34 / .45); }
+.bubble .who { font-family: var(--hand); font-size: 32px; font-weight: 700; color: var(--primary); line-height: 1; }
+.bubble p { margin-top: 6px; font-size: 27px; line-height: 1.3; }
+
+.card { background: var(--card); border: 1.5px solid var(--border); border-radius: 22px; }
+.icon { width: 1em; height: 1em; flex-shrink: 0; }
+
+/* Trasa prezentace dole: zastávky propojené červenou tečkovanou stezkou */
+#trail { position: absolute; left: 120px; right: 120px; bottom: 34px; display: flex; align-items: center; gap: 0; font-size: 20px; font-weight: 600; color: #8a978d; transition: opacity .4s; pointer-events: none; }
+#trail span { display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+#trail span + span::before { content: ''; width: 46px; margin: 0 14px; border-top: 3px dotted rgb(194 54 47 / .45); }
+#trail .mark { display: none; font-size: 18px; }
+#trail .now { color: var(--fg); font-weight: 800; }
+#trail .now .mark { display: block; }
+#trail .done { color: var(--muted); }
+#trail .brand { margin-left: auto; color: #8a978d; font-weight: 600; }
+#trail .brand::before { display: none; }
+body[data-theme="video"] #trail, body[data-theme="night"] #trail, body[data-theme="end"] #trail { opacity: 0; }
+
+/* ---------- 1 video ---------- */
+#s-video { background: #000; padding: 0; }
+#s-video video { width: 100%; height: 100%; display: block; background: #000; }
+#hint { position: absolute; right: 36px; bottom: 28px; font-size: 18px; color: rgb(255 255 255 / .28); transition: opacity .4s; }
+#s-video.played #hint { opacity: 0; }
+
+/* ---------- 2 tým ---------- */
+#s-team { background: #13201a; color: #e6ece1; --muted: #9fb0a3; --primary: #6fb98a;
+  --hill-far: #1d2e25; --hill-mid: #19281f; --hill-near: #12201a; --tree: #172a20; --trail-yellow: #d9d2b0; --trail-red: rgb(224 87 79 / .55); }
+#s-team .land { position: absolute; left: 0; bottom: 0; width: 100%; height: 430px; }
+#s-team .event { font-size: 28px; font-weight: 600; color: var(--muted); }
+#s-team h1 { margin-top: 40px; font-size: 64px; font-weight: 700; letter-spacing: -0.02em; color: #c7d3c9; }
+#s-team h1 b { display: block; font-size: 230px; font-weight: 800; letter-spacing: -0.05em; line-height: .86; color: #f6f8f1; margin-top: 6px; }
+#s-team .sub { margin-top: 34px; font-size: 36px; color: #c7d3c9; }
+.qr { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 30px 30px 24px; border-radius: 30px; background: var(--cream); color: #1c2b22; box-shadow: 0 30px 60px -30px rgb(0 0 0 / .6); }
+.qr svg { width: 300px; height: 300px; display: block; }
+.qr .url { font-size: 25px; font-weight: 800; letter-spacing: -0.01em; }
+#s-team .qr { right: 150px; top: 120px; }
+#s-team .qr-note { position: absolute; right: 110px; top: 560px; width: 500px; text-align: center; font-family: var(--hand); font-size: 40px; font-weight: 600; color: #e8bf5a; transform: rotate(-3deg); }
+.ridge { position: absolute; bottom: 4%; transform: translateX(-50%); }
+.ridge svg { display: block; }
+
+/* ---------- 3 problém ---------- */
+.csv { position: absolute; left: 120px; right: 120px; top: 360px; padding: 0; overflow: hidden; }
+.csv .bar { display: flex; align-items: center; gap: 14px; padding: 14px 24px; border-bottom: 1.5px solid var(--border); font-size: 21px; color: var(--muted); }
+.csv .bar b { color: var(--fg); }
+.csv pre { padding: 18px 24px 22px; font: 500 19px/1.75 ui-monospace, 'Cascadia Mono', Consolas, monospace; color: #3d4a41; white-space: pre; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, #000 70%, transparent 98%); mask-image: linear-gradient(90deg, #000 70%, transparent 98%); }
+.csv pre .h { color: #8a978d; }
+.csv-note { position: absolute; right: 150px; top: 300px; transform: rotate(-2.5deg); font-size: 44px; }
+.facts { position: absolute; left: 120px; right: 120px; top: 650px; display: grid; grid-template-columns: repeat(3, 1fr); }
+.fact { padding: 6px 48px 0 0; }
+.fact + .fact { padding-left: 48px; border-left: 1.5px solid var(--border); }
+.fact .num { font-size: 120px; display: flex; align-items: baseline; gap: 16px; }
+.fact .num small { font-size: 48px; color: var(--muted); letter-spacing: -0.02em; }
+.fact p { margin-top: 18px; font-size: 29px; line-height: 1.3; max-width: 22ch; }
+.fact .icon { font-size: 54px; align-self: center; }
+
+/* ---------- 4 nápad ---------- */
+.steps { position: absolute; left: 120px; right: 120px; top: 268px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 36px; }
+.steps::before { content: ''; position: absolute; left: 20px; right: 200px; top: 19px; border-top: 4px dotted rgb(194 54 47 / .55); }
+.step h3 { position: relative; display: flex; align-items: center; gap: 14px; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
+.step h3 span { background: var(--bg); padding-right: 16px; }
+.step h3 i { font-style: normal; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--bg); border: 2.5px solid var(--fg); font-size: 22px; font-weight: 800; }
+.step p { margin: 10px 0 22px; font-size: 24px; line-height: 1.3; color: var(--muted); min-height: 2.6em; }
+.step .phone { --w: 262px; }
+
+/* ---------- 5 data ---------- */
+.cols { position: absolute; left: 120px; right: 120px; top: 300px; display: grid; gap: 80px; }
+.bars h3, .src h3 { font-size: 26px; font-weight: 700; color: var(--muted); margin-bottom: 18px; }
+.bars li { display: grid; grid-template-columns: 38px 330px 1fr 70px; align-items: center; gap: 14px; height: 60px; font-size: 26px; border-bottom: 1.5px solid var(--border); list-style: none; }
+.bars ul { padding: 0; }
+.bars .icon { font-size: 30px; }
+.bars .track { height: 18px; }
+.bars .fill { height: 100%; border-radius: 99px; background: var(--c); width: 0; transition: width 1.1s var(--ease); }
+.slide.on .bars .fill { width: var(--v); transition-delay: calc(var(--d, 0) * 60ms + 300ms); }
+.bars b { text-align: right; font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.src ul { padding: 0; }
+.src li { list-style: none; display: grid; grid-template-columns: 1fr; padding: 16px 0; border-bottom: 1.5px solid var(--border); }
+.src li b { font-size: 28px; font-weight: 800; letter-spacing: -0.01em; }
+.src li span { font-size: 23px; color: var(--muted); margin-top: 2px; }
+.back { margin-top: 28px; padding: 22px 26px; border-radius: 20px; background: var(--hill-near); color: var(--cream); font-size: 26px; line-height: 1.3; }
+.back b { display: block; font-size: 30px; }
+
+/* ---------- 6 přínos ---------- */
+.wins { position: absolute; left: 120px; top: 372px; width: 1060px; padding: 0; }
+.wins li { list-style: none; display: grid; grid-template-columns: 54px 300px 1fr; align-items: baseline; padding: 15px 0; border-bottom: 1.5px solid var(--border); }
+.wins li .mark { font-size: 26px; transform: translateY(4px); }
+.wins li b { font-size: 30px; font-weight: 800; letter-spacing: -0.015em; }
+.wins li span { font-size: 26px; line-height: 1.3; color: var(--muted); }
+.office { position: absolute; left: 120px; top: 812px; width: 1060px; display: flex; gap: 22px; align-items: center; padding: 22px 28px; }
+.office b { font-size: 29px; }
+.office span { display: block; font-size: 24px; color: var(--muted); margin-top: 2px; }
+.office .stamp { width: 96px; height: 96px; flex-shrink: 0; border-radius: 50%; border: 3px solid var(--trail-green); color: var(--trail-green); display: grid; place-items: center; transform: rotate(-8deg); }
+.office .stamp div { width: 82px; height: 82px; border-radius: 50%; border: 1.5px dashed currentColor; display: grid; place-items: center; font-weight: 800; font-size: 24px; letter-spacing: .04em; }
+.side-phone { position: absolute; right: 150px; top: 80px; display: flex; flex-direction: column; align-items: center; }
+
+/* ---------- 7 kvalita ---------- */
+.checks { position: absolute; left: 120px; top: 300px; width: 880px; padding: 0; }
+.checks::before { content: ''; position: absolute; left: 21px; top: 26px; bottom: 120px; border-left: 4px dotted rgb(194 54 47 / .55); }
+.checks li { position: relative; list-style: none; display: flex; gap: 22px; align-items: baseline; padding: 14px 0; font-size: 28px; line-height: 1.3; }
+.checks li::before { content: ''; width: 46px; height: 32px; flex-shrink: 0; border-radius: 4px; background: linear-gradient(#fbfcf8 0 33%, var(--trail-red) 33% 67%, #fbfcf8 67%); box-shadow: inset 0 0 0 1.5px rgb(28 43 34 / .18); transform: translateY(5px); }
+.checks li b { font-weight: 800; }
+.checks .result { margin-top: 18px; padding: 20px 24px; border-radius: 20px; background: var(--fg); color: var(--cream); font-size: 27px; }
+.checks .result::before { display: none; }
+.right { position: absolute; left: 1090px; right: 120px; top: 300px; display: flex; flex-direction: column; gap: 22px; }
+.right .card { padding: 24px 28px; }
+.right h3 { font-size: 30px; font-weight: 800; letter-spacing: -0.015em; }
+.right p { margin-top: 8px; font-size: 25px; line-height: 1.35; color: var(--muted); }
+.stack { font-size: 22px; line-height: 1.5; color: var(--muted); }
+.stack b { color: var(--fg); }
+
+/* ---------- 8 AI ---------- */
+.ai { position: absolute; left: 120px; right: 120px; top: 350px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.ai .card { padding: 30px 32px 32px; }
+.ai .tag { display: inline-block; padding: 5px 14px; border-radius: 99px; font-size: 20px; font-weight: 700; background: var(--secondary); color: var(--muted); }
+.ai h3 { margin-top: 18px; font-size: 38px; font-weight: 800; letter-spacing: -0.02em; }
+.ai p { margin-top: 12px; font-size: 26px; line-height: 1.35; color: var(--muted); }
+.ai p b { color: var(--fg); }
+.not { position: absolute; left: 120px; right: 120px; top: 710px; display: flex; align-items: center; gap: 36px; }
+.not .guide svg { width: 150px; height: 150px; }
+.not .bubble { max-width: 1250px; }
+.not .bubble p { font-size: 30px; }
+
+/* ---------- 9 závěr ---------- */
+#s-end { padding: 0; }
+#s-end .land { position: absolute; left: 0; top: 0; width: 100%; height: 520px; }
+#s-end .band { position: absolute; left: 0; right: 0; top: 518px; bottom: 0; background: var(--hill-near); color: var(--cream); padding: 40px 120px; }
+#s-end h1 { font-size: 136px; letter-spacing: -0.045em; max-width: 1150px; }
+#s-end .sub { margin-top: 26px; font-size: 34px; color: rgb(246 248 241 / .85); }
+#s-end .team { position: absolute; left: 120px; bottom: 44px; font-size: 24px; color: rgb(246 248 241 / .7); }
+#s-end .team b { color: var(--cream); }
+#s-end .qr { right: 150px; top: 380px; }
+#s-end .qr-note { position: absolute; right: 150px; top: 860px; width: 360px; text-align: center; font-size: 40px; color: var(--trail-yellow); transform: rotate(-3deg); }
+
+/* ---------- okno řečníka (#presenter) ---------- */
+#pv { display: none; position: fixed; inset: 0; padding: 40px 56px; background: #13201a; color: #e6ece1; overflow: auto; }
+body.presenter #stage { display: none; }
+body.presenter #pv { display: block; }
+#pv .top { display: flex; align-items: baseline; gap: 28px; font-size: 22px; color: #9fb0a3; }
+#pv #clock { font-size: 72px; font-weight: 800; color: #f6f8f1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+#pv #clock.late { color: #e0574f; }
+#pv h2 { margin-top: 26px; font-size: 44px; color: #f6f8f1; }
+#pv #notes { margin-top: 18px; font-size: 32px; line-height: 1.45; max-width: 60ch; }
+#pv .next { margin-top: 30px; font-size: 22px; color: #9fb0a3; }
+#pv .btns { margin-top: 30px; display: flex; gap: 16px; }
+#pv button { font: 700 24px var(--sans); padding: 14px 28px; border-radius: 16px; border: 0; background: #f6f8f1; color: #1c2b22; cursor: pointer; }
+</style>
+</head>
+<body data-theme="video">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="g-boza" viewBox="0 0 120 120"><ellipse cx="60" cy="112" rx="30" ry="5" fill="#0002"></ellipse><ellipse cx="60" cy="70" rx="34" ry="38" fill="#b45309"></ellipse><ellipse cx="60" cy="80" rx="22" ry="22" fill="hsl(324 70% 85%)" opacity="0.9"></ellipse><path d="M30 34h60v-12h-10v6h-8v-6h-8v6h-8v-6h-8v6h-8v-6H30z" fill="#b45309" stroke="#0003"></path><circle cx="48" cy="58" r="7" fill="#fff"></circle><circle cx="72" cy="58" r="7" fill="#fff"></circle><circle cx="50" cy="59" r="3.5" fill="#111"></circle><circle cx="72" cy="59" r="3.5" fill="#111"></circle><path d="M52 72 q8 7 16 0" stroke="#111" stroke-width="2.5" fill="none" stroke-linecap="round"></path><circle cx="40" cy="68" r="4" fill="hsl(304 80% 70%)" opacity="0.6"></circle><circle cx="80" cy="68" r="4" fill="hsl(304 80% 70%)" opacity="0.6"></circle></symbol>
+<symbol id="g-vridla" viewBox="0 0 120 120"><ellipse cx="60" cy="112" rx="30" ry="5" fill="#0002"></ellipse><ellipse cx="60" cy="70" rx="32" ry="38" fill="#0d9488"></ellipse><ellipse cx="60" cy="80" rx="20" ry="22" fill="hsl(114 70% 85%)" opacity="0.9"></ellipse><path d="M60 4c8 12 12 18 12 24a12 12 0 0 1-24 0c0-6 4-12 12-24z" fill="#38bdf8"></path><circle cx="48" cy="54" r="7" fill="#fff"></circle><circle cx="72" cy="54" r="7" fill="#fff"></circle><circle cx="49" cy="55" r="3.5" fill="#111"></circle><circle cx="73" cy="55" r="3.5" fill="#111"></circle><path d="M52 68 q8 6 16 0" stroke="#111" stroke-width="2.5" fill="none" stroke-linecap="round"></path><circle cx="40" cy="64" r="4" fill="hsl(94 80% 70%)" opacity="0.6"></circle><circle cx="80" cy="64" r="4" fill="hsl(94 80% 70%)" opacity="0.6"></circle></symbol>
+<symbol id="g-kukadlo" viewBox="0 0 120 120"><ellipse cx="60" cy="112" rx="30" ry="5" fill="#0002"></ellipse><ellipse cx="60" cy="70" rx="37" ry="38" fill="#0284c7"></ellipse><ellipse cx="60" cy="80" rx="25" ry="22" fill="hsl(79 70% 85%)" opacity="0.9"></ellipse><line x1="60" y1="30" x2="60" y2="10" stroke="#0284c7" stroke-width="4"></line><circle cx="60" cy="9" r="6" fill="hsl(79 80% 60%)"></circle><circle cx="48" cy="58" r="7" fill="#fff"></circle><circle cx="72" cy="58" r="7" fill="#fff"></circle><circle cx="50" cy="59" r="3.5" fill="#111"></circle><circle cx="72" cy="59" r="3.5" fill="#111"></circle><path d="M52 72 q8 5 16 0" stroke="#111" stroke-width="2.5" fill="none" stroke-linecap="round"></path><circle cx="40" cy="68" r="4" fill="hsl(59 80% 70%)" opacity="0.6"></circle><circle cx="80" cy="68" r="4" fill="hsl(59 80% 70%)" opacity="0.6"></circle></symbol>
+<symbol id="landscape" viewBox="-400 0 1200 240" preserveAspectRatio="xMidYMax slice"><circle cx="262" cy="50" r="18" fill="var(--trail-yellow)" opacity="0.9"></circle><path d="M-400 104C-340 92-280 88-220 96S-100 84-40 100-10 110 0 112V240H-400Z" fill="var(--hill-far)" stroke="var(--hill-far)" stroke-width="4"></path><path d="M400 86C460 80 520 96 580 92S700 78 760 90 790 96 800 94V240H400Z" fill="var(--hill-far)" stroke="var(--hill-far)" stroke-width="4"></path><path d="M0 112C40 98 72 92 112 98S182 80 222 86 302 72 342 82 390 90 400 86V240H0Z" fill="var(--hill-far)"></path><path d="M-400 150C-330 130-260 124-200 134S-80 150-30 152-8 157 0 158V240H-400Z" fill="var(--hill-mid)" stroke="var(--hill-mid)" stroke-width="4"></path><path d="M400 136C450 146 520 126 580 122S700 132 760 140 790 144 800 142V240H400Z" fill="var(--hill-mid)" stroke="var(--hill-mid)" stroke-width="4"></path><path d="M0 158C30 138 62 120 96 118 126 116 150 134 180 146 220 136 262 114 300 112 340 110 370 126 400 136V240H0Z" fill="var(--hill-mid)"></path><path d="M140 112l5.12 16h-10.24z" fill="var(--tree)"></path><path d="M152 119l4.16 13h-8.32z" fill="var(--tree)"></path><path d="M163 120l4.8 15h-9.6z" fill="var(--tree)"></path><path d="M176 128l3.84 12h-7.68z" fill="var(--tree)"></path><path d="M186 122l5.12 16h-10.24z" fill="var(--tree)"></path><path d="M214 116l4.48 14h-8.96z" fill="var(--tree)"></path><path d="M226 109l5.44 17h-10.88z" fill="var(--tree)"></path><path d="M240 109l4.16 13h-8.32z" fill="var(--tree)"></path><path d="M252 104l4.8 15h-9.6z" fill="var(--tree)"></path><path d="M338 102l4.48 14h-8.96z" fill="var(--tree)"></path><path d="M350 103l5.44 17h-10.88z" fill="var(--tree)"></path><path d="M362 111l4.16 13h-8.32z" fill="var(--tree)"></path><path d="M20 135l4.8 15h-9.6z" fill="var(--tree)"></path><path d="M32 134l3.84 12h-7.68z" fill="var(--tree)"></path><path d="M44 125l5.12 16h-10.24z" fill="var(--tree)"></path><path d="M-150 125l4.8 15h-9.6z" fill="var(--tree)"></path><path d="M-138 130l3.84 12h-7.68z" fill="var(--tree)"></path><path d="M-126 129l5.12 16h-10.24z" fill="var(--tree)"></path><path d="M-320 122l4.48 14h-8.96z" fill="var(--tree)"></path><path d="M-306 123l3.52 11h-7.04z" fill="var(--tree)"></path><path d="M520 114l4.48 14h-8.96z" fill="var(--tree)"></path><path d="M532 109l5.44 17h-10.88z" fill="var(--tree)"></path><path d="M544 117l3.84 12h-7.68z" fill="var(--tree)"></path><path d="M680 123l4.8 15h-9.6z" fill="var(--tree)"></path><path d="M694 128l3.84 12h-7.68z" fill="var(--tree)"></path><g fill="var(--tree)"><path d="M80 120V94h4v-5h4v5h4v-5h4v5h4v26z"></path><path d="M100 120V102h3v-4h3v4h3v-4h3v4h2v18z"></path><rect x="86" y="104" width="4" height="7" rx="2" fill="var(--hill-mid)"></rect></g><g stroke="var(--tree)" stroke-width="2.2" stroke-linecap="round" fill="none"><path d="M292 112l6-34M308 112l-6-34M294 100h12M296 89h8"></path><path d="M293 78h14l-2-7h-10z" fill="var(--tree)"></path><path d="M300 71v-7"></path></g><path d="M300 64l7 2.5-7 2.5z" fill="var(--trail-red)"></path><path d="M-400 190C-300 178-200 186-100 192S-20 197 0 196V240H-400Z" fill="var(--hill-near)" stroke="var(--hill-near)" stroke-width="4"></path><path d="M400 180C480 172 560 184 640 186S760 180 800 182V240H400Z" fill="var(--hill-near)" stroke="var(--hill-near)" stroke-width="4"></path><path d="M0 196C60 182 122 174 200 177S338 188 400 180V240H0Z" fill="var(--hill-near)"></path><path d="M214 240C204 216 168 206 156 190S122 150 98 124" fill="none" stroke="var(--trail-red)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0.5 7"></path></symbol>
+<symbol id="qr" viewBox="0 0 29 29"><path d="M0 0h1v1h-1zM1 0h1v1h-1zM2 0h1v1h-1zM3 0h1v1h-1zM4 0h1v1h-1zM5 0h1v1h-1zM6 0h1v1h-1zM11 0h1v1h-1zM12 0h1v1h-1zM13 0h1v1h-1zM14 0h1v1h-1zM16 0h1v1h-1zM19 0h1v1h-1zM22 0h1v1h-1zM23 0h1v1h-1zM24 0h1v1h-1zM25 0h1v1h-1zM26 0h1v1h-1zM27 0h1v1h-1zM28 0h1v1h-1zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h1v1h-1zM9 1h1v1h-1zM10 1h1v1h-1zM14 1h1v1h-1zM15 1h1v1h-1zM16 1h1v1h-1zM19 1h1v1h-1zM20 1h1v1h-1zM22 1h1v1h-1zM28 1h1v1h-1zM0 2h1v1h-1zM2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM6 2h1v1h-1zM9 2h1v1h-1zM10 2h1v1h-1zM12 2h1v1h-1zM13 2h1v1h-1zM14 2h1v1h-1zM15 2h1v1h-1zM18 2h1v1h-1zM22 2h1v1h-1zM24 2h1v1h-1zM25 2h1v1h-1zM26 2h1v1h-1zM28 2h1v1h-1zM0 3h1v1h-1zM2 3h1v1h-1zM3 3h1v1h-1zM4 3h1v1h-1zM6 3h1v1h-1zM9 3h1v1h-1zM10 3h1v1h-1zM12 3h1v1h-1zM13 3h1v1h-1zM14 3h1v1h-1zM18 3h1v1h-1zM19 3h1v1h-1zM22 3h1v1h-1zM24 3h1v1h-1zM25 3h1v1h-1zM26 3h1v1h-1zM28 3h1v1h-1zM0 4h1v1h-1zM2 4h1v1h-1zM3 4h1v1h-1zM4 4h1v1h-1zM6 4h1v1h-1zM8 4h1v1h-1zM10 4h1v1h-1zM14 4h1v1h-1zM15 4h1v1h-1zM16 4h1v1h-1zM19 4h1v1h-1zM22 4h1v1h-1zM24 4h1v1h-1zM25 4h1v1h-1zM26 4h1v1h-1zM28 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1zM11 5h1v1h-1zM13 5h1v1h-1zM15 5h1v1h-1zM16 5h1v1h-1zM18 5h1v1h-1zM19 5h1v1h-1zM22 5h1v1h-1zM28 5h1v1h-1zM0 6h1v1h-1zM1 6h1v1h-1zM2 6h1v1h-1zM3 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h1v1h-1zM23 6h1v1h-1zM24 6h1v1h-1zM25 6h1v1h-1zM26 6h1v1h-1zM27 6h1v1h-1zM28 6h1v1h-1zM9 7h1v1h-1zM10 7h1v1h-1zM13 7h1v1h-1zM14 7h1v1h-1zM17 7h1v1h-1zM20 7h1v1h-1zM0 8h1v1h-1zM2 8h1v1h-1zM4 8h1v1h-1zM6 8h1v1h-1zM11 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM15 8h1v1h-1zM16 8h1v1h-1zM17 8h1v1h-1zM19 8h1v1h-1zM20 8h1v1h-1zM24 8h1v1h-1zM27 8h1v1h-1zM0 9h1v1h-1zM1 9h1v1h-1zM2 9h1v1h-1zM3 9h1v1h-1zM5 9h1v1h-1zM8 9h1v1h-1zM10 9h1v1h-1zM11 9h1v1h-1zM12 9h1v1h-1zM14 9h1v1h-1zM16 9h1v1h-1zM17 9h1v1h-1zM20 9h1v1h-1zM21 9h1v1h-1zM22 9h1v1h-1zM25 9h1v1h-1zM28 9h1v1h-1zM1 10h1v1h-1zM2 10h1v1h-1zM3 10h1v1h-1zM4 10h1v1h-1zM5 10h1v1h-1zM6 10h1v1h-1zM8 10h1v1h-1zM9 10h1v1h-1zM10 10h1v1h-1zM12 10h1v1h-1zM13 10h1v1h-1zM20 10h1v1h-1zM21 10h1v1h-1zM22 10h1v1h-1zM23 10h1v1h-1zM24 10h1v1h-1zM26 10h1v1h-1zM27 10h1v1h-1zM28 10h1v1h-1zM2 11h1v1h-1zM5 11h1v1h-1zM7 11h1v1h-1zM8 11h1v1h-1zM9 11h1v1h-1zM15 11h1v1h-1zM16 11h1v1h-1zM17 11h1v1h-1zM18 11h1v1h-1zM20 11h1v1h-1zM21 11h1v1h-1zM23 11h1v1h-1zM27 11h1v1h-1zM0 12h1v1h-1zM2 12h1v1h-1zM3 12h1v1h-1zM6 12h1v1h-1zM7 12h1v1h-1zM8 12h1v1h-1zM9 12h1v1h-1zM12 12h1v1h-1zM17 12h1v1h-1zM19 12h1v1h-1zM20 12h1v1h-1zM21 12h1v1h-1zM22 12h1v1h-1zM25 12h1v1h-1zM27 12h1v1h-1zM28 12h1v1h-1zM1 13h1v1h-1zM4 13h1v1h-1zM5 13h1v1h-1zM8 13h1v1h-1zM9 13h1v1h-1zM13 13h1v1h-1zM16 13h1v1h-1zM21 13h1v1h-1zM22 13h1v1h-1zM25 13h1v1h-1zM28 13h1v1h-1zM0 14h1v1h-1zM1 14h1v1h-1zM2 14h1v1h-1zM6 14h1v1h-1zM7 14h1v1h-1zM8 14h1v1h-1zM10 14h1v1h-1zM14 14h1v1h-1zM16 14h1v1h-1zM20 14h1v1h-1zM21 14h1v1h-1zM22 14h1v1h-1zM24 14h1v1h-1zM25 14h1v1h-1zM27 14h1v1h-1zM28 14h1v1h-1zM2 15h1v1h-1zM3 15h1v1h-1zM4 15h1v1h-1zM5 15h1v1h-1zM9 15h1v1h-1zM11 15h1v1h-1zM13 15h1v1h-1zM14 15h1v1h-1zM16 15h1v1h-1zM17 15h1v1h-1zM19 15h1v1h-1zM22 15h1v1h-1zM23 15h1v1h-1zM25 15h1v1h-1zM27 15h1v1h-1zM2 16h1v1h-1zM3 16h1v1h-1zM5 16h1v1h-1zM6 16h1v1h-1zM7 16h1v1h-1zM8 16h1v1h-1zM9 16h1v1h-1zM10 16h1v1h-1zM12 16h1v1h-1zM14 16h1v1h-1zM15 16h1v1h-1zM16 16h1v1h-1zM17 16h1v1h-1zM21 16h1v1h-1zM22 16h1v1h-1zM23 16h1v1h-1zM25 16h1v1h-1zM27 16h1v1h-1zM28 16h1v1h-1zM3 17h1v1h-1zM4 17h1v1h-1zM5 17h1v1h-1zM7 17h1v1h-1zM9 17h1v1h-1zM14 17h1v1h-1zM17 17h1v1h-1zM20 17h1v1h-1zM21 17h1v1h-1zM22 17h1v1h-1zM25 17h1v1h-1zM26 17h1v1h-1zM28 17h1v1h-1zM0 18h1v1h-1zM2 18h1v1h-1zM4 18h1v1h-1zM6 18h1v1h-1zM8 18h1v1h-1zM9 18h1v1h-1zM11 18h1v1h-1zM12 18h1v1h-1zM13 18h1v1h-1zM18 18h1v1h-1zM20 18h1v1h-1zM21 18h1v1h-1zM23 18h1v1h-1zM24 18h1v1h-1zM27 18h1v1h-1zM28 18h1v1h-1zM1 19h1v1h-1zM2 19h1v1h-1zM5 19h1v1h-1zM7 19h1v1h-1zM9 19h1v1h-1zM16 19h1v1h-1zM17 19h1v1h-1zM18 19h1v1h-1zM19 19h1v1h-1zM22 19h1v1h-1zM23 19h1v1h-1zM25 19h1v1h-1zM27 19h1v1h-1zM0 20h1v1h-1zM2 20h1v1h-1zM3 20h1v1h-1zM4 20h1v1h-1zM5 20h1v1h-1zM6 20h1v1h-1zM11 20h1v1h-1zM12 20h1v1h-1zM15 20h1v1h-1zM16 20h1v1h-1zM17 20h1v1h-1zM20 20h1v1h-1zM21 20h1v1h-1zM22 20h1v1h-1zM23 20h1v1h-1zM24 20h1v1h-1zM8 21h1v1h-1zM10 21h1v1h-1zM11 21h1v1h-1zM13 21h1v1h-1zM16 21h1v1h-1zM17 21h1v1h-1zM20 21h1v1h-1zM24 21h1v1h-1zM26 21h1v1h-1zM27 21h1v1h-1zM28 21h1v1h-1zM0 22h1v1h-1zM1 22h1v1h-1zM2 22h1v1h-1zM3 22h1v1h-1zM4 22h1v1h-1zM5 22h1v1h-1zM6 22h1v1h-1zM9 22h1v1h-1zM10 22h1v1h-1zM14 22h1v1h-1zM17 22h1v1h-1zM18 22h1v1h-1zM19 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM24 22h1v1h-1zM25 22h1v1h-1zM27 22h1v1h-1zM28 22h1v1h-1zM0 23h1v1h-1zM6 23h1v1h-1zM11 23h1v1h-1zM13 23h1v1h-1zM14 23h1v1h-1zM17 23h1v1h-1zM20 23h1v1h-1zM24 23h1v1h-1zM25 23h1v1h-1zM27 23h1v1h-1zM0 24h1v1h-1zM2 24h1v1h-1zM3 24h1v1h-1zM4 24h1v1h-1zM6 24h1v1h-1zM8 24h1v1h-1zM12 24h1v1h-1zM14 24h1v1h-1zM16 24h1v1h-1zM17 24h1v1h-1zM20 24h1v1h-1zM21 24h1v1h-1zM22 24h1v1h-1zM23 24h1v1h-1zM24 24h1v1h-1zM27 24h1v1h-1zM28 24h1v1h-1zM0 25h1v1h-1zM2 25h1v1h-1zM3 25h1v1h-1zM4 25h1v1h-1zM6 25h1v1h-1zM9 25h1v1h-1zM11 25h1v1h-1zM12 25h1v1h-1zM14 25h1v1h-1zM16 25h1v1h-1zM17 25h1v1h-1zM18 25h1v1h-1zM21 25h1v1h-1zM23 25h1v1h-1zM24 25h1v1h-1zM26 25h1v1h-1zM27 25h1v1h-1zM28 25h1v1h-1zM0 26h1v1h-1zM2 26h1v1h-1zM3 26h1v1h-1zM4 26h1v1h-1zM6 26h1v1h-1zM8 26h1v1h-1zM9 26h1v1h-1zM10 26h1v1h-1zM11 26h1v1h-1zM12 26h1v1h-1zM13 26h1v1h-1zM14 26h1v1h-1zM16 26h1v1h-1zM17 26h1v1h-1zM18 26h1v1h-1zM20 26h1v1h-1zM23 26h1v1h-1zM24 26h1v1h-1zM25 26h1v1h-1zM28 26h1v1h-1zM0 27h1v1h-1zM6 27h1v1h-1zM9 27h1v1h-1zM10 27h1v1h-1zM11 27h1v1h-1zM13 27h1v1h-1zM16 27h1v1h-1zM17 27h1v1h-1zM18 27h1v1h-1zM19 27h1v1h-1zM20 27h1v1h-1zM22 27h1v1h-1zM23 27h1v1h-1zM24 27h1v1h-1zM27 27h1v1h-1zM0 28h1v1h-1zM1 28h1v1h-1zM2 28h1v1h-1zM3 28h1v1h-1zM4 28h1v1h-1zM5 28h1v1h-1zM6 28h1v1h-1zM8 28h1v1h-1zM10 28h1v1h-1zM11 28h1v1h-1zM14 28h1v1h-1zM15 28h1v1h-1zM16 28h1v1h-1zM17 28h1v1h-1zM18 28h1v1h-1zM19 28h1v1h-1zM20 28h1v1h-1zM21 28h1v1h-1zM22 28h1v1h-1zM25 28h1v1h-1zM27 28h1v1h-1zM28 28h1v1h-1z" fill="currentColor"/></symbol>
+<symbol id="i-castle" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5V3"></path><path d="M14 5V3"></path><path d="M15 21v-3a3 3 0 0 0-6 0v3"></path><path d="M18 3v8"></path><path d="M18 5H6"></path><path d="M22 11H2"></path><path d="M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9"></path><path d="M6 3v8"></path></g></symbol>
+<symbol id="i-lookout" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.2 12.27 20 6H4l1.8 6.27a1 1 0 0 0 .95.73h10.5a1 1 0 0 0 .96-.73Z"></path><path d="M8 13v9"></path><path d="M16 22v-9"></path><path d="m9 6 1 7"></path><path d="m15 6-1 7"></path><path d="M12 6V2"></path><path d="M13 2h-2"></path></g></symbol>
+<symbol id="i-spring" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"></path></g></symbol>
+<symbol id="i-culture" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 18v-7"></path><path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z"></path><path d="M14 18v-7"></path><path d="M18 18v-7"></path><path d="M3 22h18"></path><path d="M6 18v-7"></path></g></symbol>
+<symbol id="i-nature" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10v.2A3 3 0 0 1 8.9 16H5a3 3 0 0 1-1-5.8V10a3 3 0 0 1 6 0Z"></path><path d="M7 16v6"></path><path d="M13 19v3"></path><path d="M12 19h8.3a1 1 0 0 0 .7-1.7L18 14h.3a1 1 0 0 0 .7-1.7L16 9h.2a1 1 0 0 0 .8-1.7L13 3l-1.4 1.5"></path></g></symbol>
+<symbol id="i-heritage" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999"></path><path d="M15.973 4.027A13 13 0 0 0 5.902 2.373c-1.398.342-1.092 2.158.277 2.601a19.9 19.9 0 0 1 5.822 3.024"></path><path d="M16.001 11.999a19.9 19.9 0 0 1 3.024 5.824c.444 1.369 2.26 1.676 2.603.278A13 13 0 0 0 20 8.069"></path><path d="M18.352 3.352a1.205 1.205 0 0 0-1.704 0l-5.296 5.296a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l5.296-5.296a1.205 1.205 0 0 0 0-1.704z"></path></g></symbol>
+<symbol id="i-food" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.2 18H4.774a1.5 1.5 0 0 1-1.352-.97 11 11 0 0 1 .132-6.487"></path><path d="M18 10.2V4.774a1.5 1.5 0 0 0-.97-1.352 11 11 0 0 0-6.486.132"></path><path d="M18 5a4 3 0 0 1 4 3 2 2 0 0 1-2 2 10 10 0 0 0-5.139 1.42"></path><path d="M5 18a3 4 0 0 0 3 4 2 2 0 0 0 2-2 10 10 0 0 1 1.42-5.14"></path><path d="M8.709 2.554a10 10 0 0 0-6.155 6.155 1.5 1.5 0 0 0 .676 1.626l9.807 5.42a2 2 0 0 0 2.718-2.718l-5.42-9.807a1.5 1.5 0 0 0-1.626-.676"></path></g></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></g></symbol>
+<symbol id="i-bus" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6"></path><path d="M15 6v6"></path><path d="M2 12h19.6"></path><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"></path><circle cx="7" cy="18" r="2"></circle><path d="M9 18h5"></path><circle cx="16" cy="18" r="2"></circle></g></symbol>
+</defs></svg>
+
+<div id="stage">
+
+  <!-- 1 · Video (1:20). Mezerník spustí, na konci se samo přepne na tým. -->
+  <section class="slide" id="s-video" data-theme="video" data-title="Video" data-until="80"
+    data-notes="Mezerník (nebo šipka) spustí video se zvukem. Na konci se prezentace sama prolne na snímek s týmem: to je chvíle pro „Dobrý den, dámy a pánové“.">
+    <video src="zapad-go.mp4" preload="auto" playsinline></video>
+    <div id="hint">Mezerník spustí video · P poznámky · F celá obrazovka</div>
+  </section>
+
+  <!-- 2 · Tým KOREX -->
+  <section class="slide slow" id="s-team" data-theme="night" data-title="Tým KOREX" data-trail="Tým" data-until="95"
+    data-notes="Dobrý den, dámy a pánové. Jsme tým KOREX a tohle je Západ GO. QR kód vede na živou aplikaci, klidně si ji během prezentace otevřete. Stačí zadat jméno.">
+    <svg class="land" aria-hidden="true"><use href="#landscape" width="100%" height="100%"/></svg>
+    <div class="ridge hop" style="left:16%;--d:1"><svg width="150" height="150"><use href="#g-boza"/></svg></div>
+    <div class="ridge hop" style="left:50%;--d:0"><svg width="176" height="176"><use href="#g-vridla"/></svg></div>
+    <div class="ridge hop" style="left:84%;--d:2"><svg width="150" height="150"><use href="#g-kukadlo"/></svg></div>
+    <div class="event in">Hackathon otevřených dat Karlovarského kraje 2026</div>
+    <h1 class="in" style="--d:1">Jsme tým <b>KOREX</b></h1>
+    <p class="sub in" style="--d:2">Západ GO, turistický pas Karlovarského kraje.</p>
+    <div class="qr in" style="--d:3"><svg><use href="#qr"/></svg><span class="url">zapadgo-app.nervelabs.co.uk</span></div>
+    <div class="qr-note in" style="--d:5">Zkuste si to hned. Stačí jméno.</div>
+  </section>
+
+  <!-- 3 · Problém -->
+  <section class="slide" data-title="Problém" data-until="125"
+    data-notes="Karlovarský kraj zveřejňuje na portálu DATA ZÁPAD stovky míst: hrady, rozhledny, prameny i oceněné místní výrobce. Takhle ta data vypadají: řádky v CSV. 471 z 617 míst leží mimo tři lázeňská města, 362 má autobusovou zastávku do 500 metrů a 40 oceněných výrobců Dobroty má adresu provozovny. Data tedy jsou. Chybí důvod se zvednout a dojít tam.">
+    <div class="kicker in"><i class="mark yellow"></i>Problém</div>
+    <h2 class="in" style="--d:1">Data o&nbsp;kraji existují. Chybí důvod vyrazit.</h2>
+    <div class="csv card in" style="--d:2">
+      <div class="bar"><b>Rozhledny v Karlovarském kraji</b> · CSV · datazapad.cz</div>
+<pre><span class="h">objekt_id,název,rozhledna,vyhlídková_věž,vyhlídka,typ_stavby,vznik,popis,provozovatel,přístup,vstupní_poplatek,webová_stránka,název_vyššího_územně_samosprávného_celku,…</span>
+1,Rozhledna Klínovec u Jáchymova,true,false,false,kamenná,1884,Na nejvyšší hoře Krušných hor Klínovci (1244 m n.m.) leží 80 m vysoká dominanta…
+2,Rozhledna Blatenský vrch u Horní Blatné,true,false,false,kamenná,1913,21 metrů vysoká kamenná rozhledna byla vybudována v roce 1913 z iniciativy Spolku…
+3,Rozhledna Diana v Karlových Varech,true,false,false,kamenná,1914,Mohutná cihlová rozhledna z roku 1914 o výšce 40 m doplněná krytým dřevěným ochozem.,…</pre>
+    </div>
+    <div class="csv-note hand in" style="--d:4">Tabulka nikoho na výlet nevytáhne.</div>
+    <div class="facts">
+      <div class="fact in" style="--d:3"><div class="num" style="color:var(--primary)">471<small>z 617</small></div><p>míst leží mimo Karlovy Vary, Mariánské a&nbsp;Františkovy Lázně</p></div>
+      <div class="fact in" style="--d:4"><div class="num" style="color:var(--trail-blue)"><svg class="icon"><use href="#i-bus"/></svg>362</div><p>míst má autobusovou zastávku do 500 metrů</p></div>
+      <div class="fact in" style="--d:5"><div class="num" style="color:#b83a5e"><svg class="icon"><use href="#i-food"/></svg>40</div><p>oceněných výrobců Dobroty kraje má v&nbsp;datech adresu provozovny</p></div>
+    </div>
+  </section>
+
+  <!-- 4 · Nápad -->
+  <section class="slide" data-title="Nápad" data-until="160"
+    data-notes="Z dat jsme udělali hru. Na mapě najdeš místo, dojdeš blíž než 300 metrů a vyfotíš ho. Server ověří polohu a dostaneš razítko do Pasu. Z razítka se vylíhne tvor: typ určuje druh místa, vzácnost památka, UNESCO je legendární. S tvory pak hráči bojují v reálném čase a typy se přebíjí jako kámen, nůžky, papír.">
+    <div class="kicker in"><i class="mark red"></i>Nápad</div>
+    <h2 class="in" style="--d:1">Pas, ze kterého se líhnou tvorové.</h2>
+    <div class="steps">
+      <div class="step in" style="--d:2"><h3><i>1</i><span>Najdi místo</span></h3><p>617 míst na mapě, u&nbsp;každého nejbližší zastávka.</p><div class="phone"><img src="shots/map.png" alt="Mapa míst v aplikaci"></div></div>
+      <div class="step in" style="--d:3"><h3><i>2</i><span>Dojdi a vyfoť</span></h3><p>Blíž než 300 metrů. Polohu ověří server.</p><div class="phone"><img src="shots/place.png" alt="Detail místa Hrad Loket"></div></div>
+      <div class="step in" style="--d:4"><h3><i>3</i><span>Razítko a tvor</span></h3><p>Typ podle místa. UNESCO je legendární.</p><div class="phone"><img src="shots/pass.png" alt="Pas s razítky"></div></div>
+      <div class="step in" style="--d:5"><h3><i>4</i><span>Souboj</span></h3><p>V reálném čase. Typy se přebíjí.</p><div class="phone"><img src="shots/battle-arena.png" alt="Souboj dvou tvorů"></div></div>
+    </div>
+  </section>
+
+  <!-- 5 · Otevřená data -->
+  <section class="slide" data-title="Otevřená data" data-trail="Data" data-until="190"
+    data-notes="Každé místo ve hře je řádek z dat kraje: 20 vrstev z DATA ZÁPAD, 617 míst. K tomu 1 840 autobusových zastávek a 152 oceněných produktů Dobroty. Přidali jsme Wikipedii a Wikimedia Commons pro popisy a fotky a Open-Meteo: když prší, místo dne je muzeum nebo solná jeskyně. A data vracíme: návštěvnost míst je ke stažení jako CSV pod CC0.">
+    <div class="kicker in"><i class="mark blue"></i>Otevřená data</div>
+    <h2 class="in" style="--d:1">Každé místo ve hře je řádek z&nbsp;dat kraje.</h2>
+    <div class="cols" style="grid-template-columns: 900px 1fr">
+      <div class="bars in" style="--d:2">
+        <h3>617 míst z&nbsp;20 vrstev DATA ZÁPAD</h3>
+        <ul>
+          <li style="--c:#7a3e6b;--v:100%;--d:0"><svg class="icon" style="color:#7a3e6b"><use href="#i-culture"/></svg>Kultura<div class="track"><div class="fill"></div></div><b>139</b></li>
+          <li style="--c:#0d8a8a;--v:92.8%;--d:1"><svg class="icon" style="color:#0d8a8a"><use href="#i-spring"/></svg>Prameny<div class="track"><div class="fill"></div></div><b>129</b></li>
+          <li style="--c:#6b5e4e;--v:75.5%;--d:2"><svg class="icon" style="color:#6b5e4e"><use href="#i-heritage"/></svg>Technické a archeologické<div class="track"><div class="fill"></div></div><b>105</b></li>
+          <li style="--c:#b45309;--v:56.8%;--d:3"><svg class="icon" style="color:#b45309"><use href="#i-castle"/></svg>Hrady a zámky<div class="track"><div class="fill"></div></div><b>79</b></li>
+          <li style="--c:#2e8a4e;--v:42.4%;--d:4"><svg class="icon" style="color:#2e8a4e"><use href="#i-nature"/></svg>Příroda<div class="track"><div class="fill"></div></div><b>59</b></li>
+          <li style="--c:#b83a5e;--v:28.8%;--d:5"><svg class="icon" style="color:#b83a5e"><use href="#i-food"/></svg>Dobroty kraje<div class="track"><div class="fill"></div></div><b>40</b></li>
+          <li style="--c:#2f6fa8;--v:23.7%;--d:6"><svg class="icon" style="color:#2f6fa8"><use href="#i-lookout"/></svg>Rozhledny<div class="track"><div class="fill"></div></div><b>33</b></li>
+          <li style="--c:#56646c;--v:23.7%;--d:7"><svg class="icon" style="color:#56646c"><use href="#i-info"/></svg>Infocentra<div class="track"><div class="fill"></div></div><b>33</b></li>
+        </ul>
+      </div>
+      <div class="src in" style="--d:3">
+        <h3>K&nbsp;tomu jsme připojili</h3>
+        <ul>
+          <li><b>1 840 autobusových zastávek</b><span>nejbližší zastávka u&nbsp;každého místa, výpravy bez auta</span></li>
+          <li><b>152 oceněných produktů Dobroty</b><span>Dobrotový pas, cesta k&nbsp;místním výrobcům</span></li>
+          <li><b>Wikipedie, Wikidata, Commons</b><span>popisy a&nbsp;fotky míst s&nbsp;licencí</span></li>
+          <li><b>Open-Meteo</b><span>místo dne podle počasí: když prší, muzeum</span></li>
+        </ul>
+        <div class="back"><b>A&nbsp;data vracíme zpátky</b>Návštěvnost míst ke stažení jako CSV pod CC0.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · Užitek pro kraj -->
+  <section class="slide" data-title="Užitek pro kraj" data-trail="Přínos" data-until="225"
+    data-notes="Hra cíleně posílá lidi mimo známá místa. Kam skoro nikdo nedošel, tam je o polovinu víc bodů. Výpravy bez auta začínají na zastávce. Dobrotový pas vede k místním výrobcům. Bosse týdne jde vyzvat jen na místě, i s partou. Školy soutěží v žebříčku. A kraj dostane anonymní přehled, kam lidé opravdu chodí. Data na screenshotu jsou z testovacího světa.">
+    <div class="kicker in"><i class="mark green"></i>Užitek pro lidi a&nbsp;kraj</div>
+    <h2 class="in" style="--d:1;max-width:1100px">Posíláme lidi tam, kam by sami nešli.</h2>
+    <ul class="wins">
+      <li class="in" style="--d:2"><i class="mark green"></i><b>Zapomenutá místa</b><span>Kam skoro nikdo nedošel, tam je ×1,5 XP.</span></li>
+      <li class="in" style="--d:3"><i class="mark green"></i><b>Výpravy bez auta</b><span>3–4 místa kolem jedné zastávky, odměnou vzácnější tvor.</span></li>
+      <li class="in" style="--d:4"><i class="mark green"></i><b>Dobrotový pas</b><span>Ochutnej pět druhů Dobrot u&nbsp;místních výrobců.</span></li>
+      <li class="in" style="--d:5"><i class="mark green"></i><b>Boss týdne</b><span>Vyzvat ho jde jen na místě. Sám, nebo s&nbsp;partou.</span></li>
+      <li class="in" style="--d:6"><i class="mark green"></i><b>Žebříček škol</b><span>Třídy a&nbsp;týmy soutěží, kdo prochodí víc kraje.</span></li>
+    </ul>
+    <div class="office card in" style="--d:7">
+      <div class="stamp"><div>CC0</div></div>
+      <div><b>Pro úřad: kam lidé opravdu chodí</b><span>Anonymní návštěvnost míst a&nbsp;okresů. Počty pod 5 skryté.</span></div>
+    </div>
+    <div class="side-phone in" style="--d:3">
+      <div class="phone" style="--w:340px"><img src="shots/insights-open.png" alt="Stránka Co hráči objevují"></div>
+      <div class="cap">Co hráči objevují · ukázková data</div>
+    </div>
+  </section>
+
+  <!-- 7 · Kvalita zpracování -->
+  <section class="slide" data-title="Kvalita zpracování" data-trail="Kvalita" data-until="255"
+    data-notes="Razítko se nedá naklikat z gauče. Všechno ověřuje server: vzdálenost, přesnost GPS, rychlost přesunu, čas, fotku proti kopiím i EXIF. Výsledkem je skóre důvěry. Souboje počítá server, stejný seed dá stejný boj, takže každý jde přehrát z logu. Upřímně: podvrženou GPS web nepozná, proto nevěříme jednomu signálu. 91 rizikových míst má varování a nedává odznaky.">
+    <div class="kicker in"><i class="mark red"></i>Kvalita zpracování</div>
+    <h2 class="in" style="--d:1">Razítko se nedá naklikat z&nbsp;gauče.</h2>
+    <ul class="checks in" style="--d:2">
+      <li><span><b>Poloha</b> do 300 m od místa, přesnost GPS do 100 m</span></li>
+      <li><span><b>Rychlost</b> od posledního razítka do 130 km/h</span></li>
+      <li><span><b>Čas</b> telefonu se serverem do 2 minut</span></li>
+      <li><span><b>Fotka</b> je opravdu obrázek, otisk SHA-256 a dHash proti kopiím</span></li>
+      <li><span><b>EXIF</b> poloha do 1 km a čerstvý čas pořízení</span></li>
+      <li class="result">Skóre důvěry 0–100. Pod 50 tvor nesmí do hodnocených soubojů.</li>
+    </ul>
+    <div class="right">
+      <div class="card in" style="--d:3"><h3>Souboje počítá server</h3><p>Stejný seed, stejný boj: každý souboj jde přehrát z&nbsp;logu. Tahy přes WebSocket, po výpadku 20 s na návrat.</p></div>
+      <div class="card in" style="--d:4"><h3>Bezpečnost a&nbsp;děti</h3><p>91 rizikových míst (doly, zříceniny) má varování a&nbsp;nedává odznaky. Veřejná je jen přezdívka, fotky zůstávají soukromé.</p></div>
+      <p class="stack in" style="--d:5"><b>Django + Channels · Next.js PWA · PostgreSQL · Redis</b><br>HTTPS na vlastním serveru · 43 automatických testů</p>
+      <div class="guide in" style="--d:6"><svg><use href="#g-boza"/></svg>
+        <div class="bubble"><div class="who">Bóža</div><p>Podvrženou GPS web nepozná. Proto nevěříme jednomu signálu.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · AI -->
+  <section class="slide" data-title="Použití AI" data-trail="AI" data-until="280"
+    data-notes="Pravidla chtějí, abychom použití AI obhájili. V aplikaci jsou dvě volitelné funkce: AI posoudí, jestli fotka odpovídá druhu místa, a jen posune skóre důvěry. A napíše dvě věty příběhu tvora. Obě jsou vypínatelné a hra funguje celá bez nich. Tvory ani průvodce nekreslí AI, kreslí je náš generátor ze seedu. Při vývoji jsme používali AI asistenty a každou část kódu umíme vysvětlit.">
+    <div class="kicker in"><i class="mark yellow"></i>Použití AI</div>
+    <h2 class="in" style="--d:1">AI pomáhá, nerozhoduje.</h2>
+    <div class="ai">
+      <div class="card in" style="--d:2"><span class="tag">v aplikaci · vypínatelné</span><h3>Kontrola fotky</h3><p>Gemini odpoví ano/ne, jestli fotka sedí k&nbsp;druhu místa. <b>Jen posune skóre důvěry</b>, samo nic nezamítne.</p></div>
+      <div class="card in" style="--d:3"><span class="tag">v aplikaci · vypínatelné</span><h3>Příběh tvora</h3><p>Dvě věty o&nbsp;tvorovi. Bez klíče nebo při chybě <b>šablona</b>. Hra funguje celá bez AI.</p></div>
+      <div class="card in" style="--d:4"><span class="tag">při vývoji</span><h3>Asistenti na kód</h3><p>Pomáhali psát kód a&nbsp;video (Remotion). <b>Návrh hry a&nbsp;výběr dat jsou naše</b>, každou část umíme vysvětlit.</p></div>
+    </div>
+    <div class="not in" style="--d:5">
+      <div class="guide"><svg><use href="#g-vridla"/></svg>
+        <div class="bubble"><div class="who">Vřídla</div><p>Mě nenakreslila AI, ale kód ze seedu 987654321. Stejně tak každého tvora. A&nbsp;souboje počítá deterministický engine, ne model.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · Závěr -->
+  <section class="slide" id="s-end" data-theme="end" data-title="Závěr" data-trail="Konec" data-until="300"
+    data-notes="Západ GO. Kraj, který se dá sbírat. Aplikace běží, QR kód je tady. Děkujeme, rádi odpovíme na otázky.">
+    <svg class="land" aria-hidden="true"><use href="#landscape" width="100%" height="100%"/></svg>
+    <div class="ridge hop" style="left:13%;--d:1;bottom:auto;top:396px"><svg width="128" height="128"><use href="#g-boza"/></svg></div>
+    <div class="ridge hop" style="left:35%;--d:0;bottom:auto;top:372px"><svg width="152" height="152"><use href="#g-vridla"/></svg></div>
+    <div class="ridge hop" style="left:57%;--d:2;bottom:auto;top:396px"><svg width="128" height="128"><use href="#g-kukadlo"/></svg></div>
+    <div class="band">
+      <h1 class="in">Kraj, který se dá sbírat.</h1>
+      <p class="sub in" style="--d:1">617 míst z&nbsp;otevřených dat. Dojdi, vyfoť, získej razítko.</p>
+      <p class="team in" style="--d:2"><b>Tým KOREX</b> · Hackathon otevřených dat Karlovarského kraje 2026 · github.com/Plokar/Open_data-hackathon</p>
+    </div>
+    <div class="qr in" style="--d:2"><svg><use href="#qr"/></svg><span class="url">zapadgo-app.nervelabs.co.uk</span></div>
+    <div class="qr-note hand in" style="--d:4">Děkujeme! Otázky?</div>
+  </section>
+
+  <nav id="trail" aria-hidden="true"></nav>
+</div>
+
+<div id="pv">
+  <div class="top"><span id="clock">0:00</span><span id="goal"></span><span id="pos"></span></div>
+  <h2 id="ptitle"></h2>
+  <p id="notes"></p>
+  <p class="next">Další: <span id="pnext"></span></p>
+  <div class="btns"><button data-cmd="prev">← Zpět</button><button data-cmd="next">Dál →</button></div>
+</div>
+
+<script>
+const slides = [...document.querySelectorAll('.slide')];
+const video = document.querySelector('video');
+const stage = document.getElementById('stage');
+const trail = document.getElementById('trail');
+const ch = new BroadcastChannel('zapadgo-deck');
+const presenter = location.hash === '#presenter';
+let i = -1, t0 = null;
+
+// trasa dole: zastávky 2.–9. snímku
+trail.innerHTML = slides.slice(1).map((s, k) => `<span data-k="${k + 1}"><i class="mark ${s.querySelector('.kicker .mark')?.classList[1] ?? 'red'}"></i>${s.dataset.trail ?? s.dataset.title}</span>`).join('') + '<span class="brand">Západ GO · KOREX</span>';
+
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const fit = () => { stage.style.transform = `translate(-50%, -50%) scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`; };
+
+function go(n) {
+  n = Math.max(0, Math.min(slides.length - 1, n));
+  if (n === i) return;
+  slides[i]?.classList.remove('on');
+  i = n;
+  slides[i].classList.add('on');
+  document.body.dataset.theme = slides[i].dataset.theme ?? 'light';
+  if (i !== 0) video.pause();
+  for (const el of trail.children) {
+    el.classList.toggle('now', +el.dataset.k === i);
+    el.classList.toggle('done', +el.dataset.k < i);
+  }
+  history.replaceState(null, '', `#${i + 1}`);
+  sync();
+}
+
+function next() {
+  if (i === 0 && video.paused && !video.ended) {
+    video.play();
+    t0 ??= Date.now();
+    slides[0].classList.add('played');
+    return sync();
+  }
+  go(i + 1);
+}
+const prev = () => go(i - 1);
+const sync = () => ch.postMessage({ type: 'state', i, t0 });
+
+if (presenter) {
+  // okno řečníka: jen poznámky, čas a ovládání hlavního okna
+  document.body.classList.add('presenter');
+  video.removeAttribute('src');
+  const $ = (id) => document.getElementById(id);
+  const cmd = (c) => ch.postMessage({ type: 'cmd', cmd: c });
+  ch.onmessage = ({ data }) => {
+    if (data.type !== 'state') return;
+    i = data.i; t0 = data.t0;
+    const s = slides[i];
+    $('ptitle').textContent = `${i + 1}/${slides.length} · ${s.dataset.title}`;
+    $('notes').textContent = s.dataset.notes;
+    $('pnext').textContent = slides[i + 1]?.dataset.title ?? 'konec';
+    $('goal').textContent = `tenhle snímek skončit do ${fmt(+s.dataset.until)}`;
+  };
+  setInterval(() => {
+    const el = t0 ? (Date.now() - t0) / 1000 : 0;
+    $('clock').textContent = t0 ? fmt(el) : 'čeká na video';
+    $('clock').classList.toggle('late', t0 && el > +(slides[i]?.dataset.until ?? 300));
+  }, 250);
+  document.querySelectorAll('#pv button').forEach((b) => b.onclick = () => cmd(b.dataset.cmd));
+  addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); cmd('next'); }
+    if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); cmd('prev'); }
+  });
+  ch.postMessage({ type: 'hello' });
+} else {
+  ch.onmessage = ({ data }) => {
+    if (data.type === 'hello') sync();
+    if (data.type === 'cmd') (data.cmd === 'next' ? next : prev)();
+  };
+  video.addEventListener('ended', () => go(1));
+  addEventListener('resize', fit);
+  fit();
+  addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); next(); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { video.currentTime = 0; go(0); }
+    else if (e.key === 'End') go(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    else if (e.key === 'p' || e.key === 'P') open(location.pathname + '#presenter', 'zapadgo-presenter', 'width=1100,height=760');
+  });
+  stage.addEventListener('click', next);
+  let idle;
+  addEventListener('mousemove', () => {
+    document.body.classList.remove('idle');
+    clearTimeout(idle);
+    idle = setTimeout(() => document.body.classList.add('idle'), 1500);
+  });
+  go((parseInt(location.hash.slice(1)) || 1) - 1);
+}
+</script>
+</body>
+</html>

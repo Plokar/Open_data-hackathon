@@ -129,12 +129,12 @@ def find_commons_file(name: str, lat: float, lon: float, radius: int) -> str | N
     return best['title'] if best and name_score(name, best['title']) >= 0.5 else None
 
 
-def lookup(name: str, lat: float, lon: float, category: str) -> tuple[dict | None, dict | None]:
-    """Vrátí (wiki, photo). Každé může být None."""
+def lookup(name: str, lat: float, lon: float, category: str, commons: str = '') -> tuple[dict | None, dict | None]:
+    """Vrátí (wiki, photo). Každé může být None. `commons` = soubor známý předem (Wikidata P18), má přednost."""
     radius = 1500 if category in ('castle', 'lookout', 'nature', 'heritage') else 600
     wiki = find_wiki(name, lat, lon, radius)
-    photo = None
-    if wiki and wiki['image']:
+    photo = file_info(f'File:{commons}') if commons else None
+    if not photo and wiki and wiki['image']:
         photo = file_info(f"File:{wiki['image']}")
     if not photo and category not in ('food', 'info'):  # u výrobců a infocenter nehádáme podle okolí
         title = find_commons_file(name, lat, lon, min(radius, 800))

@@ -477,11 +477,13 @@ export interface BattleState {
   waiting_for: string[];
   is_bot: boolean;
   boss: { place: number; place_name: string; week: string } | null;
+  reserve: Record<string, Omit<BattleFighter, 'slot' | 'me' | 'ally'>[]>; // sestava na bosse: kdo čeká na střídačce
 }
 
 export interface TurnEvent {
   actor: string;   // slot
   target?: string; // slot zasaženého
+  fighter?: BattleFighter; // u střídání (move 'swap'): kdo nastupuje
   move: Move;
   name: string;
   kind: MoveInfo['kind'];
@@ -505,6 +507,8 @@ export interface BattleEnd {
   winner: 'you' | 'opp' | 'draw';
   winners: string[];
   xp: number;
+  player_xp: number; // XP do profilu hráče (i za prohru)
+  pets: { id: number; name: string; xp: number; damage: number; level_up: number | null; injured: boolean; can_evolve: boolean }[];
   rating_delta: number;
   level_up: number | null;
   injured_until: string | null;
@@ -557,7 +561,7 @@ export const battleApi = {
     }),
   start: (id: string) => apiFetch<{ battle_id: string; status: string }>(`/api/battles/${id}/start/`, { method: 'POST' }),
   bosses: () => apiFetch<BossInfo[]>('/api/battles/bosses/', { cache: 'no-store' }),
-  challengeBoss: (placeId: number, data: Record<string, string | number | boolean>) =>
+  challengeBoss: (placeId: number, data: Record<string, string | number | boolean | number[]>) =>
     apiFetch<{ battle_id: string }>(`/api/battles/bosses/${placeId}/`, { method: 'POST', body: JSON.stringify(data) }),
   get: (id: string) => apiFetch<BattleDetail>(`/api/battles/${id}/`, { cache: 'no-store' }),
 };
@@ -628,7 +632,8 @@ export interface Team {
 }
 
 export const teamApi = {
-  quests: () => apiFetch<Quest[]>('/api/quests/'),
+  quests: (pos?: { lat: number; lon: number } | null) =>
+    apiFetch<Quest[]>(pos ? `/api/quests/?lat=${pos.lat}&lon=${pos.lon}` : '/api/quests/'),
   trails: () => apiFetch<Trail[]>('/api/trails/', { cache: 'no-store' }),
   foodPass: () => apiFetch<FoodKind[]>('/api/food-pass/', { cache: 'no-store' }),
   mine: () => apiFetch<{ team: Team | null }>('/api/teams/'),

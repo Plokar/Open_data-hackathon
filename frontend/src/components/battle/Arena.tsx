@@ -11,7 +11,7 @@ type Bars = Record<string, { hp: number; sp: number }>;
 const bars = (fs: BattleFighter[]): Bars => Object.fromEntries(fs.map((f) => [f.slot, { hp: f.hp, sp: f.sp ?? 0 }]));
 const TEAM_COLOR: Record<string, string> = { red: '#e0574f', blue: '#4f8de0' };
 
-function Hud({ f, v, compact }: { f: BattleFighter; v: { hp: number; sp: number }; compact: boolean }) {
+function Hud({ f, v, compact, bench = [] }: { f: BattleFighter; v: { hp: number; sp: number }; compact: boolean; bench?: { name: string }[] }) {
   const pct = Math.max(0, Math.min(100, (100 * v.hp) / f.max_hp));
   const sp = Math.max(0, Math.min(100, (100 * v.sp) / (f.max_sp || 1)));
   const dead = v.hp <= 0;
@@ -44,16 +44,21 @@ function Hud({ f, v, compact }: { f: BattleFighter; v: { hp: number; sp: number 
           {!compact && <div className="mt-0.5 text-right text-[11px] tabular-nums opacity-90">{Math.max(0, v.hp)} / {f.max_hp}</div>}
         </>
       )}
+      {bench.length > 0 && <div className="mt-0.5 truncate text-[10px] opacity-75">Střídačka: {bench.map((x) => x.name).join(', ')}</div>}
     </div>
   );
 }
 
 /** Aréna: Pixi scéna (lib/battleFx) + HUD v DOM. Výsledky tahů přehrává postupně, pruhy hýbe až animace. */
-export function Arena({ fighters, results, onBusy }: { fighters: BattleFighter[]; results: TurnResult[]; onBusy: (busy: boolean) => void }) {
+export function Arena({ fighters, results, onBusy, reserve = {} }: {
+  fighters: BattleFighter[]; results: TurnResult[]; onBusy: (busy: boolean) => void; reserve?: Record<string, { name: string }[]>;
+}) {
   const el = useRef<HTMLDivElement>(null);
   const [scene, setScene] = useState<BattleScene | null>(null);
   const [busy, setBusy] = useState(false);
   const [disp, setDisp] = useState<Bars>(() => bars(fighters));
+  // HUD ukazuje bojovníky podle animace (u sestavy se jméno změní až při střídání, ne hned se stavem ze serveru)
+  const [shown, setShown] = useState(fighters);
   const [say, setSay] = useState('');
   const played = useRef(results.length);
   const running = useRef(false);
@@ -78,7 +83,9 @@ export function Arena({ fighters, results, onBusy }: { fighters: BattleFighter[]
   // Mimo animaci drží pruhy pravdu ze serveru. Nový stav chodí hned po výsledku tahu,
   // takže dokud čeká nepřehraný tah, pruhy zůstávají na stavu před ním.
   useEffect(() => {
-    if (!busy && played.current >= results.length) setDisp(bars(fighters));
+    if (busy || played.current < results.length) return;
+    setDisp(bars(fighters));
+    setShown(fighters);
   }, [busy, fighters, results]);
 
   useEffect(() => {
@@ -94,6 +101,10 @@ export function Arena({ fighters, results, onBusy }: { fighters: BattleFighter[]
           await scene.play(e, hp, {
             say: setSay,
             change: (slot, d) => setDisp((v) => v[slot] ? { ...v, [slot]: { hp: v[slot].hp + (d.hp ?? 0), sp: v[slot].sp + (d.sp ?? 0) } } : v),
+            swap: (slot, nf) => {
+              setShown((cur) => cur.map((x) => (x.slot === slot ? { ...nf, slot, me: x.me, ally: x.ally } : x)));
+              setDisp((v) => ({ ...v, [slot]: { hp: nf.hp, sp: nf.sp ?? 0 } }));
+            },
           });
         }
       }
@@ -104,15 +115,16 @@ export function Arena({ fighters, results, onBusy }: { fighters: BattleFighter[]
     })();
   }, [scene, results]);
 
-  const enemies = fighters.filter((f) => !f.ally && !f.me);
-  const mine = [...fighters.filter((f) => f.me), ...fighters.filter((f) => f.ally && !f.me)];
+  const enemies = shown.filter((f) => !f.ally && !f.me);
+  const mine = [...shown.filter((f) => f.me), ...shown.filter((f) => f.ally && !f.me)];
+  const benchOf = (f: BattleFighter) => reserve[f.slot] ?? []; // sestava na bosse: kdo ještě nenastoupil
   const compact = fighters.length > 2;
   const v = (f: BattleFighter) => disp[f.slot] ?? { hp: f.hp, sp: f.sp ?? 0 };
 
   // 1v1: HUD přes arénu jako v Pokémonech. Skupinové souboje: pruhy nad a pod arénou, ať nezakrývají tvory.
   const row = (fs: BattleFighter[]) => (
     <div className={cn('-mx-4 grid gap-1 bg-[#0b0e16] px-2 py-1.5 sm:mx-0', fs.length > 2 ? 'grid-cols-3' : fs.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-      {fs.map((f) => <Hud key={f.slot} f={f} v={v(f)} compact />)}
+      {fs.map((f) => <Hud key={f.slot} f={f} v={v(f)} compact bench={benchOf(f)} />)}
     </div>
   );
   return (
@@ -124,7 +136,7 @@ export function Arena({ fighters, results, onBusy }: { fighters: BattleFighter[]
         {!compact && (
           <>
             <div className="absolute left-[3%] top-[4%] w-[46%]">{enemies.map((f) => <Hud key={f.slot} f={f} v={v(f)} compact={false} />)}</div>
-            <div className="absolute bottom-[4%] right-[3%] w-[46%]">{mine.map((f) => <Hud key={f.slot} f={f} v={v(f)} compact={false} />)}</div>
+            <div className="absolute bottom-[4%] right-[3%] w-[46%]">{mine.map((f) => <Hud key={f.slot} f={f} v={v(f)} compact={false} bench={benchOf(f)} />)}</div>
           </>
         )}
       </div>

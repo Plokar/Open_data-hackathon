@@ -14,7 +14,7 @@ export default function TermsPage() {
           <li>Respektuj otevírací doby, místní pravidla a přírodu. Nefoť lidi.</li>
           <li>Přezdívka nesmí být urážlivá ani vydávat se za někoho jiného.</li>
           <li>Hra je hackathonový prototyp „tak jak je“; data se mohou smazat nebo změnit.</li>
-          <li>Údaje o místech jsou z otevřených dat Karlovarského kraje (CC0) a nemusí být aktuální.</li>
+          <li>Údaje o místech jsou z otevřených dat Karlovarského kraje a z Wikidat pro Plzeňský kraj (CC0) a nemusí být aktuální.</li>
         </ol>
       </article>
     </AppShell>

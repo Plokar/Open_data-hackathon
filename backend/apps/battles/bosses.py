@@ -3,7 +3,12 @@
 Rozmístění je deterministické podle týdne (žádná tabulka ani cron), takže všichni hráči vidí stejné bosy
 a další týden jsou jinde. S každým bosem jde bojovat jednou za týden, i když prohraješ (BossWin = pokus).
 Na bosse můžou vyrazit až 3 kamarádi spolu, každý musí být na místě; boss sílí s počtem hráčů.
+Sólo hráč si vezme sestavu až 3 tvorů, kteří se střídají (padlého nahradí další).
 Kdo bosse porazí, dostane legendárního tvora a odznak.
+
+Síla bosse se odvozuje od tvorů, kteří proti němu jdou (staty o 15 % nad jejich průměrem), takže je stejně
+těžký na levelu 3 i 15. Životy rostou jen s počtem hráčů, ne s velikostí sestavy, ta dává hráči „životy“ navíc.
+Vyladěno simulací (bot proti botovi): 1 tvor ~5 %, sestava 3 tvorů ~60–80 %, parta 2 ~35–60 %, parta 3 ~80 %.
 """
 import random
 from datetime import timedelta
@@ -19,11 +24,13 @@ from . import engine
 
 BOSS_COUNT = 12
 MAX_PARTY = 3
+MAX_LINEUP = 3
 CATEGORIES = ('castle', 'lookout', 'nature', 'spring', 'culture', 'heritage')
 TITLE = {'fortress': 'Pán hradeb', 'view': 'Vládce větrů', 'nature': 'Duch hvozdu',
          'spring': 'Pán pramenů', 'culture': 'Strážce múz', 'taste': 'Mistr hostin'}
-HP_MULT = 2.5        # sólo boss
-HP_PER_FRIEND = 1.6  # každý další hráč přidá bossovi tolik násobků životů navíc
+STAT_MULT = 1.15     # staty bosse vůči průměru tvorů proti němu
+HP_MULT = 1.7        # životy bosse = průměrné životy tvora × (HP_MULT + HP_PER_FRIEND × další hráči)
+HP_PER_FRIEND = 0.5
 
 
 def week_start(day=None):
@@ -59,11 +66,14 @@ def fought(user, place, week):
     return BossWin.objects.filter(user=user, place=place, week=week).exists()
 
 
-def fighter(boss, party_pets):
-    """Boss roste s nejsilnějším tvorem party (o 2 levely víc, plně vyvinutý) a s počtem hráčů (životy)."""
-    level = max(max(p.level for p in party_pets) + 2, 4)
-    stats = pets.scaled(boss, level, 3)
-    stats['hp'] = round(stats['hp'] * (HP_MULT + HP_PER_FRIEND * (len(party_pets) - 1)))
+def fighter(boss, party, players=1):
+    """Boss podle tvorů proti němu (party = fightery všech tvorů včetně sestav) a počtu hráčů."""
+    n = len(party)
+    avg = lambda k: sum(f[k] for f in party) / n
+    stats = {k: round(avg(k) * STAT_MULT) for k in ('atk', 'defense', 'spd', 'mag')}
+    stats['stamina'] = round(avg('max_sp') * STAT_MULT)
+    stats['hp'] = round(avg('max_hp') * (HP_MULT + HP_PER_FRIEND * (players - 1)))
+    level = max(f['level'] for f in party) + 2  # jen pro zobrazení
     f = engine.fighter(stats, boss['type'], boss['name'], 3)
     f.update(seed=boss['seed'], rarity='legendary', level=level, team='boss', boss=True, user=None, owner=None)
     return f

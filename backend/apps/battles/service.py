@@ -31,7 +31,8 @@ SLOTS = 'abcd'
 SIZE = {'ranked': 2, 'friendly': 2, 'practice': 2, 'boss': 4, 'ffa': 3, 'team': 4}
 TEAMS = {'team': {'a': 'red', 'b': 'blue', 'c': 'red', 'd': 'blue'},
          'boss': {'a': 'party', 'b': 'boss', 'c': 'party', 'd': 'party'}}  # jinde má každý slot svůj tým
-XP = {'practice': (20, 6), 'boss': (90, 15)}  # (výhra, prohra), jinak 40 / 12
+XP = {'practice': (20, 6), 'boss': (90, 15)}  # tvorům (výhra, prohra), jinak 40 / 12; v sestavě se dělí podle zranění
+PLAYER_XP = (20, 5)  # hráči do profilu (výhra, prohra) – i prohra něco dá
 PVP = ('ranked', 'friendly', 'ffa', 'team')
 
 
@@ -70,7 +71,8 @@ def _start(b):
         place = Place.objects.get(pk=info['place'])
         week = datetime.fromisoformat(info['week']).date()
         party = [f for s, f in fs.items() if s != 'b']
-        fs['b'] = bosses.fighter(bosses.spec(place, week), list(Pet.objects.filter(pk__in=[f['pet'] for f in party])))
+        lineups = party + [f for bench in b.state.get('reserve', {}).values() for f in bench]
+        fs['b'] = bosses.fighter(bosses.spec(place, week), lineups, len(party))
         bosses.record_attempts(User.objects.filter(pk__in=[f['user'] for f in party]), place, week)
     b.status = 'active'
     b.state.update({'turn': 1, 'pending': {}, 'deadline': _deadline()})
@@ -107,12 +109,18 @@ def create_practice(user, pet):
     return _vs_bot(user, pet, 'practice', bot, seed)
 
 
-def create_boss(user, pet, place, boss, week, solo=True):
-    """Sólo: souboj hned. Jinak čekárna, kam se přidají kamarádi na místě; hostitel ji spustí (start_boss)."""
+def create_boss(user, lineup, place, boss, week, solo=True):
+    """Sólo: souboj hned, se sestavou až 3 tvorů (padlého nahradí další). Jinak čekárna s jedním tvorem,
+    kam se přidají kamarádi na místě; hostitel ji spustí (start_boss)."""
     from . import bosses
-    _check_pet(user, pet, 'boss')
-    b = Battle.objects.create(player_a=user, pet_a=pet, mode='boss', seed=random.getrandbits(31), state={
-        'fighters': {'a': _fighter(pet, user, 'a', 'boss'), 'b': bosses.fighter(boss, [pet])}, 'bots': ['b'],
+    if not solo:
+        lineup = lineup[:1]
+    for pet in lineup:
+        _check_pet(user, pet, 'boss')
+    team = [_fighter(pet, user, 'a', 'boss') for pet in lineup]
+    b = Battle.objects.create(player_a=user, pet_a=lineup[0], mode='boss', seed=random.getrandbits(31), state={
+        'fighters': {'a': team[0], 'b': bosses.fighter(boss, team)}, 'bots': ['b'],
+        'reserve': {'a': team[1:]} if len(team) > 1 else {},
         'boss': {'place': place.id, 'place_name': place.name, 'week': week.isoformat()}})
     if solo:
         _start(b)
@@ -198,6 +206,19 @@ def _resolve(b):
             s['pending'][slot] = {'move': engine.bot_move(fs[slot], b.seed + ord(slot), s['turn']), 'target': None}
     turn = s['turn']
     events = engine.resolve(fs, s['pending'], b.seed, turn)
+    # zranění podle tvorů (XP v sestavě se dělí podle toho, kolik kdo dal)
+    dmg = s.setdefault('dmg', {})
+    for e in events:
+        pet_id = fs[e['actor']].get('pet')
+        if e.get('damage') and pet_id:
+            dmg[str(pet_id)] = dmg.get(str(pet_id), 0) + e['damage']
+    # padlého tvora ze sestavy nahradí další
+    for slot, bench in s.get('reserve', {}).items():
+        if fs[slot]['hp'] <= 0 and bench:
+            s.setdefault('fallen', {}).setdefault(slot, []).append(fs[slot]['pet'])
+            fs[slot] = bench.pop(0)
+            events.append({'actor': slot, 'move': 'swap', 'kind': 'swap', 'fx': 'swap', 'cost': 0, 'name': fs[slot]['name'],
+                           'fighter': _public(slot, fs[slot])})
     b.log.append({'turn': turn, 'moves': dict(s['pending']), 'events': events})
     w = engine.outcome(fs, turn)
     s.update({'turn': turn + 1, 'pending': {}, 'deadline': _deadline()})
@@ -211,27 +232,39 @@ def _finish(b, w):
     b.status, b.winner, b.finished_at = 'finished', w, timezone.now()
     boss = b.state.get('boss')
     result = {}
+    dmg = b.state.get('dmg', {})
     for slot, f in fighters(b).items():
         if not f.get('user'):
             continue
         user = User.objects.get(pk=f['user'])
-        pet = Pet.objects.filter(pk=f.get('pet')).first()
         won = w != 'draw' and f['team'] == w
+        lost = not won and w != 'draw'
         before = rating.compute(user)  # před uložením tvora, ať „+N“ ukazuje jen tenhle souboj
         xp = XP.get(b.mode, (40, 12))[0 if won else 1]
-        level_up, injured = None, None
-        if pet:
+        # tvorové, kteří bojovali: padlí ze sestavy + ten, kdo stál v aréně na konci
+        fallen = b.state.get('fallen', {}).get(slot, [])
+        used = Pet.objects.in_bulk(fallen + [f['pet']])
+        shares = split_xp(xp, [pid for pid in fallen + [f['pet']] if pid in used], dmg)
+        pet_results, injured = [], None
+        for pid, gain in shares.items():
+            pet = used[pid]
             old = pet.level
-            pet.xp += xp
+            pet.xp += gain
             pet.level = pets.level_for_xp(pet.xp)
-            level_up = pet.level if pet.level > old else None
-            if not won and w != 'draw':  # poražený tvor je zraněný a chvíli nemůže bojovat
+            # padlý tvor (i ve vyhraném souboji) a tvor poraženého hráče se 30 min léčí
+            if pid in fallen or (pid == f['pet'] and (f['hp'] <= 0 or lost)):
                 pet.injured_until = timezone.now() + pets.INJURY
                 injured = pet.injured_until.isoformat()
             pet.save(update_fields=['xp', 'level', 'injured_until'])
+            pet_results.append({'id': pid, 'name': pet.name, 'xp': gain, 'damage': dmg.get(str(pid), 0),
+                                'level_up': pet.level if pet.level > old else None, 'injured': pet.injured_until is not None and pet.injured_until > timezone.now(),
+                                'can_evolve': pets.can_evolve(pet)})
+        pet = used.get(f['pet'])
+        level_up = next((r['level_up'] for r in pet_results if r['id'] == f['pet']), None)
         prof = profile_of(user)
+        player_xp = PLAYER_XP[0 if won else 1]
+        prof.add_xp(player_xp)
         if won:
-            prof.add_xp(20)
             prof.wins += int(b.mode in PVP)  # výhry na profilu a v žebříčku: jen proti hráčům
             prof.battle_points += rating.WIN_POINTS[b.mode]
         prof.save()
@@ -246,9 +279,20 @@ def _finish(b, w):
             reward = {'pet': pet_data, 'badges': [{'code': x.code, 'name': x.name, 'icon': x.icon} for x in new_badges]}
         prof.rating = rating.compute(user)
         prof.save(update_fields=['rating'])
-        result[slot] = {'xp': xp, 'rating_delta': prof.rating - before, 'level_up': level_up, 'injured_until': injured,
-                        'can_evolve': bool(pet and pets.can_evolve(pet)), 'reward': reward}
+        result[slot] = {'xp': xp, 'player_xp': player_xp, 'pets': pet_results, 'rating_delta': prof.rating - before,
+                        'level_up': level_up, 'injured_until': injured, 'reward': reward,
+                        'can_evolve': any(r['can_evolve'] for r in pet_results)}
     b.state['result'] = result
+
+
+def split_xp(xp, pet_ids, dmg):
+    """XP souboje mezi tvory podle zranění, které dali (bez zranění rovným dílem). {pet_id: xp}"""
+    if not pet_ids:
+        return {}
+    total = sum(dmg.get(str(p), 0) for p in pet_ids)
+    if not total:
+        return {p: xp // len(pet_ids) for p in pet_ids}
+    return {p: round(xp * dmg.get(str(p), 0) / total) for p in pet_ids}
 
 
 @transaction.atomic
@@ -283,6 +327,10 @@ def timeout(battle_id, turn):
 PUBLIC = ('hp', 'max_hp', 'guard', 'type', 'type2', 'name', 'seed', 'stage', 'rarity', 'level', 'team', 'owner', 'boss')
 
 
+def _public(slot, f):
+    return {**{k: f.get(k) for k in PUBLIC}, 'slot': slot, 'sp': f.get('sp'), 'max_sp': f.get('max_sp')}
+
+
 def view(b, slot):
     """Stav z pohledu hráče (slot; None = divák). Výdrž je vidět jen u sebe a spojenců."""
     s, fs = b.state, b.state.get('fighters', {})
@@ -301,7 +349,9 @@ def view(b, slot):
             'moves': me and [{'id': m, **engine.MOVES[m], 'type': me['type']} for m in me['moves']],
             'waiting_for_you': active and bool(me) and me['hp'] > 0 and slot not in pending,
             'waiting_for': [fs[x]['owner'] for x in _humans_alive(b) if x not in pending] if active else [],
-            'is_bot': bool(s.get('bots')), 'boss': s.get('boss')}
+            'is_bot': bool(s.get('bots')), 'boss': s.get('boss'),
+            # sestava na bosse: kdo ještě čeká na střídačce
+            'reserve': {x: [{k: f.get(k) for k in PUBLIC} for f in bench] for x, bench in s.get('reserve', {}).items()}}
 
 
 def turn_result(entry, slot=None):
@@ -314,6 +364,7 @@ def battle_end(b, slot):
     w = 'draw' if b.winner == 'draw' else ('you' if me and me['team'] == b.winner else 'opp')
     r = b.state.get('result', {}).get(slot, {})
     return {'type': 'battle_end', 'winner': w, 'xp': r.get('xp', 0), 'rating_delta': r.get('rating_delta', 0),
+            'player_xp': r.get('player_xp', 0), 'pets': r.get('pets', []),
             'winners': [f.get('owner') or f['name'] for f in fs.values() if f['team'] == b.winner],
             'level_up': r.get('level_up'), 'injured_until': r.get('injured_until'), 'can_evolve': r.get('can_evolve', False),
             'reward': r.get('reward')}
