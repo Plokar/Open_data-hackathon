@@ -30,6 +30,16 @@ async function fetchCsrfToken(): Promise<string> {
   }
 }
 
+let refreshing: Promise<boolean> | null = null;
+
+/** Obnoví access token přes refresh cookie. Souběžné požadavky sdílí jeden refresh, rotace by druhý zneplatnila. */
+export function refreshSession(): Promise<boolean> {
+  refreshing ??= fetch(`${API_BASE}/api/auth/token/refresh/`, { method: 'POST', credentials: 'include' })
+    .then((r) => r.ok, () => false)
+    .finally(() => { refreshing = null; });
+  return refreshing;
+}
+
 async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -53,11 +63,10 @@ async function apiFetch<T>(
     }
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include', // JWT access_token cookie
-  });
+  const send = () => fetch(url, { ...options, headers, credentials: 'include' }); // JWT access_token cookie
+  let response = await send();
+  // Prošlý access token: jednou obnovit a zopakovat. U /api/auth/ ne, tam 401 znamená špatné heslo.
+  if (response.status === 401 && !endpoint.startsWith('/api/auth/') && (await refreshSession())) response = await send();
 
   if (!response.ok) {
     let errorData: unknown;
@@ -129,6 +138,7 @@ export interface AuthResponse {
 export interface AuthStatus {
   authenticated: boolean;
   user: User | null;
+  can_refresh?: boolean; // má refresh cookie (httpOnly, JS ji nevidí)
 }
 
 export const authApi = {

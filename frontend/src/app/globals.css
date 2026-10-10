@@ -167,6 +167,10 @@ a {
   font-family: var(--font-sans);
   background: var(--muted);
 }
+/* Svět mimo kraj splyne s pozadím mapy (dlaždice se tam nestahují) */
+.kraj-mask {
+  fill: var(--muted);
+}
 .leaflet-tooltip {
   background: var(--card);
   color: var(--foreground);
@@ -273,9 +277,31 @@ a {
 }
 .boss-done { filter: grayscale(1); opacity: 0.6; animation: none; }
 
+/* Prohlídka s průvodci: díra ve ztmavení klouže mezi zvýrazněnými prvky */
+.tour-spot {
+  box-shadow: 0 0 0 200vmax rgb(8 16 11 / 0.68);
+  transition: left 480ms cubic-bezier(0.22, 1, 0.36, 1), top 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 480ms cubic-bezier(0.22, 1, 0.36, 1), height 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tour-ring::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 3px solid #fbfcf8;
+  border-radius: inherit;
+  animation: tour-ring 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@keyframes tour-ring {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .hop-in, .stamp-down, .step-in, .me-pulse, .pet-idle, .evolve-cta, .boss-ring {
+  .hop-in, .stamp-down, .step-in, .me-pulse, .pet-idle, .evolve-cta, .boss-ring, .tour-ring::after {
     animation: none;
+  }
+  .tour-spot {
+    transition: none;
   }
 }
 

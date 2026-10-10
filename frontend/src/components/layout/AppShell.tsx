@@ -6,6 +6,7 @@ import { Map, BookOpen, PawPrint, Swords, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Logo, TrailMark, type TrailColor } from '@/components/brand/TrailMark';
+import { Tour } from '@/components/guide/Tour';
 import { cn } from '@/lib/utils';
 
 const NAV: { href: string; label: string; icon: typeof Map; trail: TrailColor }[] = [
@@ -71,6 +72,7 @@ export function AppShell({ children, fullBleed = false }: { children: React.Reac
           })}
         </div>
       </nav>
+      <Tour />
     </div>
   );
 }

@@ -213,6 +213,8 @@ def _parents(request, data):
         return None, err('BAD_PAIR', 'Vyber dva různé své tvory.')
     if any(p.injured_until and p.injured_until > timezone.now() for p in found):
         return None, err('PET_INJURED', 'Zraněný nebo vyčerpaný tvor se šlechtit nemůže.')
+    if abs(found[0].level - found[1].level) > pets.MERGE_MAX_LEVEL_GAP:
+        return None, err('LEVEL_GAP', f'Šlechtit jde jen tvory, jejichž level se liší nejvýš o {pets.MERGE_MAX_LEVEL_GAP}.')
     return sorted(found, key=lambda p: p.pk), None
 
 
@@ -269,7 +271,7 @@ def pet_merge(request):
 @permission_classes([IsAuthenticated])
 def pet_evolve(request, pk):
     with transaction.atomic():
-        p = get_object_or_404(Pet.objects.select_for_update().select_related('place', 'checkin'), pk=pk, owner=request.user)
+        p = get_object_or_404(Pet.objects.select_for_update(of=('self',)).select_related('place', 'checkin'), pk=pk, owner=request.user)
         if not pets.can_evolve(p):
             need = pets.EVOLVE_LEVEL.get(p.stage + 1)
             return err('CANNOT_EVOLVE', f'Evoluce je možná od levelu {need}.' if need else 'Tvor je už plně vyvinutý.')

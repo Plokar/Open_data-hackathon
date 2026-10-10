@@ -87,6 +87,8 @@ BRED_MOVES = ['aurora', 'quake', 'meteor', 'living_water', 'leech_bloom', 'twin_
 # Když se šlechtění nepovede, s touto šancí oba rodiče zmizí (jinak jsou jen vyčerpaní).
 # Bez ztráty by šlo neúspěch zkoušet donekonečna.
 MERGE_LOSS = 0.45
+# Šlechtit jde jen tvory podobné síly (rozdíl levelů nejvýš 1), jinak by šlo slabým tvorem „vylepšit“ silného.
+MERGE_MAX_LEVEL_GAP = 1
 RANK = list(RARITY_MULT)
 
 

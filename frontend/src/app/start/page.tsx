@@ -7,6 +7,7 @@ import { ChevronLeft } from 'lucide-react';
 import { Landscape } from '@/components/brand/Landscape';
 import { TrailMark, type TrailColor } from '@/components/brand/TrailMark';
 import { GUIDES, Guide, GuideAvatar, MascotArt, type GuideId } from '@/components/guide/Guide';
+import { TOUR_KEY } from '@/components/guide/Tour';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -132,9 +133,10 @@ export default function StartPage() {
   const [busy, setBusy] = useState(false);
   const last = STEPS.length; // poslední krok je jméno
 
+  // Tvrdá navigace: router cache drží prefetchnuté redirecty na /start z doby před přihlášením
   useEffect(() => {
-    if (user && !busy) router.replace(afterStart());
-  }, [user, busy, router]);
+    if (user && !busy) window.location.replace(afterStart());
+  }, [user, busy]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,7 +163,8 @@ export default function StartPage() {
           if (!taken || attempt >= 4) throw err;
         }
       }
-      router.replace(afterStart());
+      try { localStorage.setItem(TOUR_KEY, '1'); } catch { /* prohlídka se jen neukáže */ }
+      window.location.replace(afterStart());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Pas se nepodařilo založit. Zkus to znovu.');
       setBusy(false);

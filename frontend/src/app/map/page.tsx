@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Crown, LocateFixed, X } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Guide } from '@/components/guide/Guide';
+import { TOUR_KEY } from '@/components/guide/Tour';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { battleApi, gameApi, type BossInfo, type Category, type PlaceDetail, type PlaceFeature } from '@/lib/api';
@@ -42,7 +43,7 @@ export default function MapPage() {
     gameApi.places().then((d) => setFeatures(d.features)).catch(() => setError('Místa se nenačetla. Zkontroluj připojení a obnov stránku.'));
     battleApi.bosses().then(setBosses).catch(() => {});
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage až po hydrataci
-    setTip(!localStorage.getItem(TIP_KEY));
+    setTip(!localStorage.getItem(TIP_KEY) && !localStorage.getItem(TOUR_KEY)); // nováček mapu pozná v prohlídce
   }, []);
   useEffect(() => {
     if (user) gameApi.myCheckins().then((c) => setStamped(new Set(c.map((x) => x.place.id)))).catch(() => {});

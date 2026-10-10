@@ -15,6 +15,7 @@ import { PET_TYPE, RARITY } from '@/lib/game';
 import { cn } from '@/lib/utils';
 
 const RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
+const MAX_LEVEL_GAP = 1; // stejně jako pets.MERGE_MAX_LEVEL_GAP na serveru
 type Sort = 'level' | 'rarity' | 'new' | 'type';
 const SORTS: Record<Sort, [string, (a: Pet, b: Pet) => number]> = {
   level: ['Level', (a, b) => b.level - a.level || b.xp - a.xp],
@@ -24,12 +25,15 @@ const SORTS: Record<Sort, [string, (a: Pet, b: Pet) => number]> = {
 };
 
 /** Malá dlaždice tvora do mřížky. */
-function Tile({ p, active, picked, onClick, onStar }: { p: Pet; active: boolean; picked: boolean; onClick: () => void; onStar: () => void }) {
+function Tile({ p, active, picked, blocked, onClick, onStar }: {
+  p: Pet; active: boolean; picked: boolean; blocked?: boolean; onClick: () => void; onStar: () => void;
+}) {
   const injured = useInjury(p.injured_until);
   return (
     <li className="relative">
-      <button onClick={onClick} aria-pressed={active || picked}
-        className={cn('flex w-full cursor-pointer flex-col items-center rounded-2xl border-2 px-1 pb-2 pt-1 text-center transition-colors',
+      <button onClick={onClick} aria-pressed={active || picked} disabled={blocked}
+        title={blocked ? `Moc velký rozdíl levelů (víc než ${MAX_LEVEL_GAP})` : undefined}
+        className={cn('flex w-full cursor-pointer flex-col items-center rounded-2xl border-2 px-1 pb-2 pt-1 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-35 disabled:grayscale',
           picked ? 'border-trail-yellow bg-trail-yellow/15' : active ? 'border-primary bg-primary/10' : 'border-border bg-card')}
         style={!picked && !active ? { background: `linear-gradient(to bottom, color-mix(in oklab, ${PET_TYPE[p.type].color} 14%, var(--card)), var(--card) 70%)` } : undefined}>
         <span className={cn(injured && 'opacity-50 grayscale')}>
@@ -111,8 +115,13 @@ export default function PetsPage() {
     el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' });
   };
 
+  // Ke šlechtění se hodí jen tvorové s podobným levelem jako naposledy vybraný
+  const anchor = pets?.find((x) => x.id === pair[pair.length - 1]);
+  const blocked = (p: Pet) => breeding && !!anchor && !pair.includes(p.id) && Math.abs(p.level - anchor.level) > MAX_LEVEL_GAP;
+
   const tap = (p: Pet) => {
     if (!breeding) return goTo(list.findIndex((x) => x.id === p.id));
+    if (blocked(p)) return;
     setPair((cur) => (cur.includes(p.id) ? cur.filter((x) => x !== p.id) : [...cur, p.id].slice(-2)));
   };
 
@@ -170,6 +179,7 @@ export default function PetsPage() {
         <Guide who="vridla" className="mt-4">
           Vyber dva tvory a já z nich vyšlechtím jednoho. Staty se smíchají a může se zlepšit rarita nebo vzniknout nové kouzlo.
           Dva různé typy dají křížence, ale nepovede se to vždycky, a pak můžou oba zmizet. Oba rodiče se spojí v jednoho.
+          Spojit jde jen tvory, jejichž level se liší nejvýš o {MAX_LEVEL_GAP}.
         </Guide>
       )}
 
@@ -232,7 +242,7 @@ export default function PetsPage() {
           {list.length ? (
             <ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
               {list.map((p, i) => (
-                <Tile key={p.id} p={p} active={!breeding && i === index} picked={pair.includes(p.id)} onClick={() => tap(p)} onStar={() => star(p)} />
+                <Tile key={p.id} p={p} active={!breeding && i === index} picked={pair.includes(p.id)} blocked={blocked(p)} onClick={() => tap(p)} onStar={() => star(p)} />
               ))}
             </ul>
           ) : <p className="mt-3 text-sm text-muted-foreground">Zatím nemáš oblíbené. Klepni na hvězdičku u tvora.</p>}

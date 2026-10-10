@@ -5,6 +5,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { PlaceFeature } from '@/lib/api';
 import { CATEGORY } from '@/lib/game';
+import { KRAJ } from './kraj';
+
+/** Stejný limit jako anticheat.check_position na backendu. */
+const REACH_M = 300;
 
 interface Props {
   features: PlaceFeature[];
@@ -41,15 +45,24 @@ export default function PlacesMap({ features, stamped, onSelect, onLocate, cente
   const bossLayer = useRef<L.LayerGroup | null>(null);
   const me = useRef<L.Marker | null>(null);
   const accuracy = useRef<L.Circle | null>(null);
+  const reach = useRef<L.Circle | null>(null);
   const cb = useRef({ onSelect, onLocate, onBoss });
   useEffect(() => {
     cb.current = { onSelect, onLocate, onBoss };
   });
 
   useEffect(() => {
-    const m = L.map(el.current!, { center: [50.15, 12.7], zoom: 9, preferCanvas: true, zoomControl: false });
+    // Jen Karlovarský kraj: dál se neposune, dlaždice mimo něj se nestahují a zbytek světa zakryje maska
+    const kraj = L.latLngBounds(KRAJ).pad(0.08);
+    const m = L.map(el.current!, { maxBounds: kraj, maxBoundsViscosity: 1, preferCanvas: true, zoomControl: false });
+    // Na telefonu se celý kraj vejde až na zoomu 8 a je drobný, proto start na 9 a oddálit jde jen na celý kraj
+    m.setView(kraj.getCenter(), 9).setMinZoom(m.getBoundsZoom(kraj));
+    L.polygon([[[48, 10], [48, 16], [52, 16], [52, 10]], KRAJ], {
+      renderer: L.svg(), className: 'kraj-mask', interactive: false, color: '#2e6a47', weight: 2.5, fillOpacity: 1,
+    }).addTo(m);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
+      bounds: kraj,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · data © DATA ZÁPAD (CC0)',
     }).addTo(m);
     // ponytail: bez +/- tlačítek, na telefonu se zoomuje prsty a na desktopu kolečkem
@@ -58,11 +71,14 @@ export default function PlacesMap({ features, stamped, onSelect, onLocate, cente
     m.on('locationfound', (e: L.LocationEvent) => {
       const ll = e.latlng;
       if (!me.current) {
+        // ponytail: Leaflet kreslí kruh v projekci, na 300 m je to přesné dost
+        reach.current = L.circle(ll, { radius: REACH_M, color: '#2e6a47', weight: 2, dashArray: '6 6', fillColor: '#2e6a47', fillOpacity: 0.07, interactive: false }).addTo(m);
         accuracy.current = L.circle(ll, { radius: e.accuracy, color: '#2f6fa8', weight: 1, fillOpacity: 0.08, interactive: false }).addTo(m);
         me.current = L.marker(ll, { icon: ME_ICON, zIndexOffset: 1000, keyboard: false, title: 'Tady jsi' }).addTo(m);
       } else {
         me.current.setLatLng(ll);
         accuracy.current?.setLatLng(ll).setRadius(e.accuracy);
+        reach.current?.setLatLng(ll);
       }
       cb.current.onLocate?.(ll.lat, ll.lng);
     });
@@ -73,6 +89,7 @@ export default function PlacesMap({ features, stamped, onSelect, onLocate, cente
       m.remove();
       me.current = null;
       accuracy.current = null;
+      reach.current = null;
     };
   }, []);
 

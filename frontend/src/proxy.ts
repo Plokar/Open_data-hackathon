@@ -20,14 +20,15 @@ function safeRedirect(r: string | null) {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const accessToken = request.cookies.get('access_token');
-  const isAuthenticated = !!accessToken;
+  const isAuthenticated = request.cookies.has('access_token');
+  // Prošlou access cookie klient obnoví z refresh cookie, nevyhazovat ho na onboarding
+  const canRefresh = isAuthenticated || request.cookies.has('refresh_token');
 
   // Nepřihlášené z chráněných stránek poslat na onboarding (stačí jméno)
   const isProtected = PROTECTED_PATHS.some((path) =>
     pathname.startsWith(path),
   );
-  if (isProtected && !isAuthenticated) {
+  if (isProtected && !canRefresh) {
     // Po onboardingu se vrátit, odkud přišel (např. pozvánka na souboj)
     const url = new URL('/start', request.url);
     url.searchParams.set('redirect', pathname + request.nextUrl.search);

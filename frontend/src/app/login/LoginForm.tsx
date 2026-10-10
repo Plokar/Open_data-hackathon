@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/brand/TrailMark';
@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export default function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { login, user } = useAuth();
 
@@ -24,9 +23,10 @@ export default function LoginForm() {
   const r = searchParams.get('redirect');
   const redirectUrl = r && r.startsWith('/') && !r.startsWith('//') ? r : '/map'; // jen interní cesty
 
+  // Tvrdá navigace: router cache drží prefetchnuté redirecty na /start z doby, kdy hráč nebyl přihlášený
   React.useEffect(() => {
-    if (user) router.push(redirectUrl);
-  }, [user, router, redirectUrl]);
+    if (user) window.location.replace(redirectUrl);
+  }, [user, redirectUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,11 +34,9 @@ export default function LoginForm() {
     setError('');
     setLoading(true);
     try {
-      await login(username.trim(), password);
-      router.push(redirectUrl);
+      await login(username.trim(), password); // přesměruje efekt výše
     } catch {
       setError('Přezdívka nebo heslo nesedí.');
-    } finally {
       setLoading(false);
     }
   };

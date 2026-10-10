@@ -95,6 +95,12 @@ def test_merge_success_and_failure(place, monkeypatch):
     odds = c.get('/api/pets/merge/preview/', {'a': a.id, 'b': b.id}).data
     assert odds['hybrid'] and odds['success'] == 0.6
     assert c.post('/api/pets/merge/', {'a': a.id, 'b': a.id}).data['error_code'] == 'BAD_PAIR'
+    strong = mk(place, 'castle', 'silny')
+    strong.level = 4  # a, b mají level 2: rozdíl 2 je moc
+    strong.save()
+    assert c.post('/api/pets/merge/', {'a': a.id, 'b': strong.id}).data['error_code'] == 'LEVEL_GAP'
+    assert c.get('/api/pets/merge/preview/', {'a': a.id, 'b': strong.id}).data['error_code'] == 'LEVEL_GAP'
+    strong.delete()
     # nepovede se a rodiče přežijí: jsou vyčerpaní a hned znovu to nejde
     monkeypatch.setattr(random, 'SystemRandom', lambda: type('R', (), {'random': lambda self: 0.99})())
     r = c.post('/api/pets/merge/', {'a': a.id, 'b': b.id}).data

@@ -198,22 +198,19 @@ class CustomTokenRefreshView(TokenRefreshView):
     Refresh access tokenu – přijme refresh z body nebo cookie.
     """
     def post(self, request, *args, **kwargs):
-        # Pokud není refresh v body, zkusit cookie
-        refresh_token = request.COOKIES.get(
+        # Pokud není refresh v body, vzít cookie (request.data se mutovat nedá, prázdné tělo je obyčejný dict)
+        refresh_token = request.data.get('refresh') or request.COOKIES.get(
             settings.SIMPLE_JWT.get('AUTH_COOKIE_REFRESH', 'refresh_token')
         )
-        if refresh_token and 'refresh' not in request.data:
-            request.data._mutable = True if hasattr(request.data, '_mutable') else None
-            data = request.data.copy()
-            data['refresh'] = refresh_token
-            request._data = data
+        serializer = self.get_serializer(data={'refresh': refresh_token})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            raise InvalidToken(e.args[0]) from e
 
-        response = super().post(request, *args, **kwargs)
-
-        if response.status_code == 200:
-            refresh = RefreshToken(response.data.get('refresh', refresh_token))
-            set_jwt_cookies(response, refresh)
-
+        response = Response(serializer.validated_data)
+        # Po rotaci je v datech nový refresh token, cookies musí dostat ten
+        set_jwt_cookies(response, RefreshToken(serializer.validated_data.get('refresh', refresh_token)))
         return response
 
 
@@ -317,7 +314,9 @@ def check_auth_status(request):
             'authenticated': True,
             'user': UserSerializer(request.user).data,
         })
-    return Response({'authenticated': False, 'user': None})
+    # Refresh cookie je httpOnly: klient se tu dozví, jestli má smysl zkusit obnovit prošlý access token
+    can_refresh = settings.SIMPLE_JWT.get('AUTH_COOKIE_REFRESH', 'refresh_token') in request.COOKIES
+    return Response({'authenticated': False, 'user': None, 'can_refresh': can_refresh})
 
 
 class ForgotPasswordView(APIView):
