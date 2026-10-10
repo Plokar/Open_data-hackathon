@@ -33,13 +33,14 @@ def test_position_rules():
         ((50.09, 12.3706, 20, now, now), 'TOO_FAR'),                      # ~1,2 km
         ((50.0794, 12.3706, 500, now, now), 'LOW_ACCURACY'),
         ((50.0794, 12.3706, 20, now - timedelta(minutes=5), now), 'CLOCK_SKEW'),
-        ((50.0794, 12.3706, 20, now, now, SimpleNamespace(lat=50.0794, lon=12.3706, created_at=now - timedelta(seconds=10))), 'COOLDOWN'),
         ((50.0794, 12.3706, 20, now, now, SimpleNamespace(lat=50.2300, lon=12.8700, created_at=now - timedelta(minutes=5))), 'TOO_FAST'),
     ]
     for args, code in cases:
         with pytest.raises(anticheat.Reject) as e:
             anticheat.check_position(PLACE, *args)
         assert e.value.code == code
+    # Hned za sebou je to v pořádku (žádný cooldown), i se skokem GPS o ~80 m
+    assert anticheat.check_position(PLACE, 50.0800, 12.3710, 20, now, now, SimpleNamespace(lat=50.0794, lon=12.3706, created_at=now)) < 300
     # DEMO_MODE přeskočí vzdálenost a přesnost, ne ostatní pravidla
     assert anticheat.check_position(PLACE, 50.2, 12.8, 500, now, now, demo=True) > 300
 

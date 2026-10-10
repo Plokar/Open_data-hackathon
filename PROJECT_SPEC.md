@@ -257,7 +257,7 @@ Cíl je minimální podvod při rozumné složitosti, **ne nemožnost podvodu**.
 3. **Rychlost:** od posledního check-inu tohoto uživatele musí stačit reálná rychlost (≤ 130 km/h vzdušnou čarou); jinak `TOO_FAST`.
 4. **Čas klienta:** `client_ts` se liší od serverového času o ≤ 120 s.
 5. **Duplicitní razítko:** unikátní `(user, place)`, jinak `ALREADY_STAMPED`.
-6. **Cooldown:** max. 1 check-in za 60 s na uživatele.
+6. **Cooldown:** zrušen, blízká místa jde orazítkovat hned za sebou. Proti spamu stačí throttle `checkin` (30/h) a kontrola rychlosti přesunu.
 7. **Fotka:** typ JPEG/PNG/WebP, ≤ 8 MB, ověřit dekódováním (Pillow), ne jen příponou. `sha256` unikátní napříč celou DB (`DUPLICATE_PHOTO`); perceptual hash (dHash přes Pillow, `anticheat._dhash`) – blízký duplikát fotky stejného místa od jiného uživatele odmítnout.
 8. **EXIF:** pokud fotka nese GPS, musí být do 1 km od místa; pokud nese `DateTimeOriginal`, nesmí být starší než 15 minut. Chybějící EXIF je **povolen** (mobilní prohlížeče ho často mažou), jen sníží `trust`.
 9. **Vision AI (volitelné, vypínatelné `AI_VISION_VERIFY`):** model posoudí, zda fotka odpovídá kategorii místa. Výsledek **jen upravuje `trust`**, nikdy sám neblokuje.

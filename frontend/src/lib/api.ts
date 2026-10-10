@@ -444,7 +444,6 @@ const ERROR_TEXT: Record<string, string> = {
   TOO_FAST: 'Od posledního razítka ses přesunul nereálně rychle.',
   CLOCK_SKEW: 'Čas v telefonu nesedí. Zapni automatický čas.',
   ALREADY_STAMPED: 'Tohle místo už v Pasu máš.',
-  COOLDOWN: 'Moc rychle za sebou. Další razítko za chvíli.',
   DUPLICATE_PHOTO: 'Tahle fotka už byla použitá. Vyfoť místo znovu.',
   BAD_PHOTO: 'Soubor není platná fotka.',
   PHOTO_TOO_LARGE: 'Fotka je moc velká (max. 8 MB).',

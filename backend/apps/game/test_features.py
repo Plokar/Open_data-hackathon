@@ -24,7 +24,7 @@ def _place(i, category='nature', **kw):
 
 
 def _stamp(user, place, **kw):
-    """Razítko rovnou do DB; zestárne o den, ať další přes API nenarazí na COOLDOWN."""
+    """Razítko rovnou do DB, o den starší (jako dřívější návštěva)."""
     ci = CheckIn.objects.create(user=user, place=place, lat=place.lat, lon=place.lon, accuracy_m=5, distance_m=5, **kw)
     CheckIn.objects.filter(pk=ci.pk).update(created_at=timezone.now() - timedelta(days=1))
     return ci

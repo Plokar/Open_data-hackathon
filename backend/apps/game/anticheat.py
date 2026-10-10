@@ -11,7 +11,6 @@ from apps.places.geo import haversine_m
 MAX_ACCURACY_M = 100
 MAX_SPEED_KMH = 130
 MAX_CLOCK_SKEW_S = 120
-COOLDOWN_S = 60
 MAX_PHOTO_BYTES = 8 * 1024 * 1024
 EXIF_MAX_DIST_M = 1000
 EXIF_MAX_AGE = timedelta(minutes=15)
@@ -28,10 +27,11 @@ def check_position(place, lat, lon, accuracy, client_ts, now, last=None, radius=
     """Pravidla 1–4 a 6. `last` je poslední check-in uživatele (lat, lon, created_at). Vrací vzdálenost v m."""
     distance = round(haversine_m(place.lat, place.lon, lat, lon))
     if last is not None:
-        dt = (now - last.created_at).total_seconds()
-        if dt < COOLDOWN_S:
-            raise Reject('COOLDOWN', 'Další razítko můžeš dát za chvíli.', 429, retry_after_s=int(COOLDOWN_S - dt))
-        if haversine_m(last.lat, last.lon, lat, lon) / 1000 / (dt / 3600) > MAX_SPEED_KMH:
+        # Bez cooldownu jde orazítkovat víc blízkých míst hned za sebou. Skok GPS do MAX_ACCURACY_M se nepočítá,
+        # jinak by dvě razítka během pár sekund vyšla jako „nereálně rychlý přesun“.
+        dt = max(1, (now - last.created_at).total_seconds())
+        moved_m = max(0, haversine_m(last.lat, last.lon, lat, lon) - MAX_ACCURACY_M)
+        if moved_m / 1000 / (dt / 3600) > MAX_SPEED_KMH:
             raise Reject('TOO_FAST', 'Od posledního razítka ses přesunul nereálně rychle.', 403)
     if abs((now - client_ts).total_seconds()) > MAX_CLOCK_SKEW_S:
         raise Reject('CLOCK_SKEW', 'Čas v telefonu nesedí se serverem.')

@@ -55,7 +55,7 @@ Bez Vercelu: `docker compose --profile selfhost up -d --build`.
 
 ## Jak to funguje
 
-- **Razítko:** server ověří vzdálenost (≤ 300 m), přesnost GPS, rychlost přesunu, čas zařízení, cooldown, duplicitní fotku (SHA-256 a dHash) a EXIF. Z toho spočítá *trust*. Neověřené razítko se uloží, ale PET nesmí do hodnocených soubojů.
+- **Razítko:** server ověří vzdálenost (≤ 300 m), přesnost GPS, rychlost přesunu, čas zařízení, duplicitní fotku (SHA-256 a dHash) a EXIF. Z toho spočítá *trust*. Neověřené razítko se uloží, ale PET nesmí do hodnocených soubojů.
 - **PET:** deterministický ze `sha256(místo + fotka + hráč)`. Typ podle kategorie místa, rarita podle místa (UNESCO = legendární).
 - **Souboje:** tahy počítá server (`apps/battles/engine.py`), přenos přes WebSocket, 15 s na tah. Boj jde z logu přesně přehrát.
 - **Pro kraj:** `/insights` ukazuje anonymní souhrn návštěvnosti a neobjevená místa.
